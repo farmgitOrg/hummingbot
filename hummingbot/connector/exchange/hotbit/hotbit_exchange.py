@@ -1,0 +1,357 @@
+import asyncio
+import json
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+from bidict import bidict
+
+from hummingbot.connector.constants import s_decimal_NaN
+from hummingbot.connector.exchange.hotbit import (
+    hotbit_constants as CONSTANTS,
+    hotbit_utils,
+    hotbit_web_utils as web_utils,
+)
+from hummingbot.connector.exchange.hotbit.hotbit_api_order_book_data_source import HotbitAPIOrderBookDataSource
+from hummingbot.connector.exchange.hotbit.hotbit_api_user_stream_data_source import HotbitAPIUserStreamDataSource
+from hummingbot.connector.exchange.hotbit.hotbit_auth import HotbitAuth
+from hummingbot.connector.exchange.hotbit.hotbit_order_book_tracker import HotbitOrderBookTracker
+from hummingbot.connector.exchange_py_base import ExchangePyBase
+from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.connector.utils import combine_to_hb_trading_pair
+from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
+from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
+
+if TYPE_CHECKING:
+    from hummingbot.client.config.config_helpers import ClientConfigAdapter
+
+s_logger = None
+
+
+class HotbitExchange(ExchangePyBase):
+    UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
+
+    web_utils = web_utils
+
+    def __init__(self,
+                 client_config_map: "ClientConfigAdapter",
+                 hotbit_api_key: str,
+                 hotbit_api_secret: str,
+                 trading_pairs: Optional[List[str]] = None,
+                 trading_required: bool = True,
+                 domain: str = CONSTANTS.DEFAULT_DOMAIN,
+                 ):
+        self.api_key = hotbit_api_key
+        self.secret_key = hotbit_api_secret
+        self._domain = domain
+        self._trading_required = trading_required
+        self._trading_pairs = trading_pairs
+        self._last_trades_poll_hotbit_timestamp = 1.0
+        super().__init__(client_config_map)
+        self._set_order_book_tracker(HotbitOrderBookTracker(
+            trading_pairs=self._trading_pairs, connector=self, api_factory=self._web_assistants_factory))
+
+    @staticmethod
+    def hotbit_order_type(order_type: OrderType) -> str:
+        return order_type.name.upper()
+
+    @staticmethod
+    def to_hb_order_type(hotbit_type: str) -> OrderType:
+        return OrderType[hotbit_type]
+
+    @property
+    def authenticator(self):
+        return HotbitAuth(
+            api_key=self.api_key,
+            secret_key=self.secret_key,
+            time_provider=self._time_synchronizer)
+
+    @property
+    def name(self) -> str:
+        return "hotbit"
+
+    @property
+    def rate_limits_rules(self):
+        return CONSTANTS.RATE_LIMITS
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def client_order_id_max_length(self):
+        return CONSTANTS.MAX_ORDER_ID_LEN
+
+    @property
+    def client_order_id_prefix(self):
+        return CONSTANTS.ORDER_ID_PREFIX
+
+    @property
+    def trading_rules_request_path(self):
+        return CONSTANTS.EXCHANGE_INFO_PATH_URL
+
+    @property
+    def trading_pairs_request_path(self):
+        return CONSTANTS.EXCHANGE_INFO_PATH_URL
+
+    @property
+    def check_network_request_path(self):
+        return CONSTANTS.PING_PATH_URL
+
+    @property
+    def trading_pairs(self):
+        return self._trading_pairs
+
+    @property
+    def is_cancel_request_in_exchange_synchronous(self) -> bool:
+        return True
+
+    @property
+    def is_trading_required(self) -> bool:
+        return self._trading_required
+
+    def supported_order_types(self):
+        return [OrderType.LIMIT, OrderType.LIMIT_MAKER]
+
+    def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
+        return False
+
+    def _create_web_assistants_factory(self) -> WebAssistantsFactory:
+        return web_utils.build_api_factory(
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            auth=self._auth)
+
+    def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:
+        return HotbitAPIOrderBookDataSource(
+            trading_pairs=self._trading_pairs,
+            connector=self,
+            api_factory=self._web_assistants_factory)
+
+    def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
+        return HotbitAPIUserStreamDataSource(
+            auth=self._auth,
+            trading_pairs=self._trading_pairs,
+            connector=self,
+            api_factory=self._web_assistants_factory,
+            domain=self.domain,
+        )
+
+    def _get_fee(self,
+                 base_currency: str,
+                 quote_currency: str,
+                 order_type: OrderType,
+                 order_side: TradeType,
+                 amount: Decimal,
+                 price: Decimal = s_decimal_NaN,
+                 is_maker: Optional[bool] = None) -> TradeFeeBase:
+        is_maker = order_type is OrderType.LIMIT_MAKER
+        return DeductedFromReturnsTradeFee(percent=self.estimate_fee_pct(is_maker))
+
+    async def _place_order(self,
+                           order_id: str,
+                           trading_pair: str,
+                           amount: Decimal,
+                           trade_type: TradeType,
+                           order_type: OrderType,
+                           price: Decimal,
+                           **kwargs) -> Tuple[str, float]:
+        order_result = None
+        amount_str = f"{amount:f}"
+        price_str = f"{price:f}"
+        side = CONSTANTS.SIDE_BUY if trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        api_params = {"market": symbol,
+                      "side": str(side),
+                      "amount": amount_str,
+                      "price": price_str,
+                      "isfee": "0"}
+
+        order_result_all = await self._api_post(
+            path_url=CONSTANTS.ORDER_Limit_PATH_URL,
+            data=api_params,
+            is_auth_required=True)
+        if order_result_all["error"] is not None:
+            raise RuntimeError("_place_order fail")
+        order_result = order_result_all["result"]
+        o_id = str(order_result["id"])
+        transact_time = order_result["ctime"]
+        return (o_id, transact_time)
+
+    async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
+        api_params = {
+            "market": symbol,
+            "order_id": tracked_order.exchange_order_id,
+        }
+        cancel_result = await self._api_post(
+            path_url=CONSTANTS.ORDER_CANCEL_PATH_URL,
+            data=api_params,
+            is_auth_required=True)
+        if cancel_result["error"] is None:
+            return True
+        return False
+
+    async def _update_trading_fees(self):
+        """
+        Update fees information from the exchange
+        """
+        pass
+
+    async def _user_stream_event_listener(self):
+        async for stream_message in self._iter_user_event_queue():
+            try:
+                channel = stream_message.get("method")
+
+                if channel == CONSTANTS.TRADE_EVENT_TYPE:
+                    # TODO 不清楚返回的数据定义，id是否是orderId
+                    pass
+
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                self.logger().exception("Unexpected error in user stream listener loop.")
+                await self._sleep(5.0)
+
+    async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
+        trade_updates = []
+
+        if order.exchange_order_id is not None:
+            exchange_order_id = str(order.exchange_order_id)
+            trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
+            all_fills_response = await self._api_post(
+                path_url=CONSTANTS.MY_TRADES_PATH_URL,
+                data={
+                    "offset": "0",
+                    "order_id": exchange_order_id
+                },
+                is_auth_required=True,
+                limit_id=CONSTANTS.MY_TRADES_PATH_URL)
+            # TODO detail接口返回空数组，待处理
+
+            if all_fills_response["error"] is not None:
+                errorMsg = all_fills_response["message"] if all_fills_response["message"] is not None else ""
+                raise RuntimeError(f"_all_trade_updates_for_order error {errorMsg}")
+            all_fills = all_fills_response["result"]
+            for trade in all_fills["records"]:
+                exchange_order_id = str(trade["id"])
+                # TODO fee_stock 是否正常返回，否则拿pair里面的stock
+                fee = TradeFeeBase.new_spot_fee(
+                    fee_schema=self.trade_fee_schema(),
+                    trade_type=order.trade_type,
+                    percent_token=trade["fee_stock"],
+                    flat_fees=[TokenAmount(amount=Decimal(trade["deal_fee"]), token=trade["fee_stock"])]
+                )
+                trade_update = TradeUpdate(
+                    trade_id=str(trade["id"]),
+                    client_order_id=order.client_order_id,
+                    exchange_order_id=exchange_order_id,
+                    trading_pair=trading_pair,
+                    fee=fee,
+                    fill_base_amount=Decimal(trade["deal_stock"]),
+                    fill_quote_amount=Decimal(trade["deal_money"]),
+                    fill_price=Decimal(trade["price"]),
+                    fill_timestamp=trade["ctime"],
+                )
+                trade_updates.append(trade_update)
+
+        return trade_updates
+
+    async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
+        updated_order_data = (await self._api_post(
+            path_url=CONSTANTS.ORDER_PATH_URL,
+            data={
+                "offset": 0,
+                "order_id": tracked_order.client_order_id,
+                "limit": 100},
+            is_auth_required=True))["result"][0]
+
+        new_state = CONSTANTS.ORDER_STATE[updated_order_data["status"]]
+
+        order_update = OrderUpdate(
+            client_order_id=tracked_order.client_order_id,
+            exchange_order_id=str(updated_order_data["id"]),
+            trading_pair=tracked_order.trading_pair,
+            update_timestamp=updated_order_data["mtime"],
+            new_state=new_state,
+        )
+
+        return order_update
+
+    async def _update_balances(self):
+        local_asset_names = set(self._account_balances.keys())
+        remote_asset_names = set()
+
+        account_info = await self._api_post(
+            path_url=CONSTANTS.ACCOUNTS_PATH_URL,
+            data={
+                "assets": json.dumps([])
+            },
+            is_auth_required=True)
+        if account_info["error"] is not None:
+            errorMsg = account_info["message"] if account_info["message"] is not None else ""
+            raise RuntimeError(f"_update_balances error {errorMsg}")
+        balances = account_info["result"]
+        for asset_name in balances:
+            asset = balances[asset_name]
+            free_balance = Decimal(asset["available"])
+            total_balance = Decimal(asset["available"]) + Decimal(asset["freeze"])
+            self._account_available_balances[asset_name] = free_balance
+            self._account_balances[asset_name] = total_balance
+            remote_asset_names.add(asset_name)
+
+        asset_names_to_remove = local_asset_names.difference(remote_asset_names)
+        for asset_name in asset_names_to_remove:
+            del self._account_available_balances[asset_name]
+            del self._account_balances[asset_name]
+
+    async def _get_last_traded_price(self, trading_pair: str) -> float:
+        params = {
+            "market": await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair),
+            "period": 86400
+        }
+
+        resp_json = (await self._api_request(
+            method=RESTMethod.GET,
+            path_url=CONSTANTS.TICKER_PRICE_CHANGE_PATH_URL,
+            params=params
+        ))["result"]
+
+        return float(resp_json["last"])
+
+    async def _format_trading_rules(self, raw_trading_pair_info: List[Dict[str, Any]]) -> List[TradingRule]:
+        trading_rules = []
+
+        for info in raw_trading_pair_info["result"]:
+            try:
+                trading_rules.append(
+                    TradingRule(
+                        trading_pair=await self.trading_pair_associated_to_exchange_symbol(symbol=info["name"]),
+                        min_order_size=Decimal(info["min_amount"]),
+                        min_price_increment=Decimal(10).__pow__(Decimal(-1).__mul__(info["money_prec"])),
+                        min_base_amount_increment=Decimal(10).__pow__(Decimal(-1).__mul__(info["stock_prec"])),
+                    )
+                )
+            except Exception:
+                self.logger().exception(f"Error parsing the trading pair rule {info}. Skipping.")
+        return trading_rules
+
+    async def _initialize_trading_pair_symbol_map(self):
+        # This has to be reimplemented because the request requires an extra parameter
+        try:
+            exchange_info = await self._api_get(
+                path_url=self.trading_pairs_request_path
+            )
+            self._initialize_trading_pair_symbols_from_exchange_info(exchange_info=exchange_info)
+        except Exception:
+            self.logger().exception("There was an error requesting exchange info.")
+
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
+        mapping = bidict()
+        for symbol_data in filter(hotbit_utils.is_exchange_information_valid, exchange_info["result"]):
+            mapping[symbol_data["name"]] = combine_to_hb_trading_pair(base=symbol_data["stock"], quote=symbol_data["money"])
+        self._set_trading_pair_symbol_map(mapping)

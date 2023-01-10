@@ -34,6 +34,7 @@ connector_status = {
     'gate_io': 'yellow',
     'gate_io_perpetual': 'yellow',
     'hitbtc': 'green',
+    'hotbit': 'green',
     'huobi': 'green',
     'kraken': 'green',
     'kucoin': 'yellow',
