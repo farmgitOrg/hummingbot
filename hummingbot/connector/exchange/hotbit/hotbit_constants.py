@@ -21,8 +21,10 @@ SNAPSHOT_PATH_URL = "/order.depth"
 ACCOUNTS_PATH_URL = "/balance.query"
 MY_TRADES_PATH_URL = "/order.finished_detail"
 ORDER_PATH_URL = "/order.deals"
-ORDER_Limit_PATH_URL = "/order.put_limit"
+ORDER_LIMIT_PATH_URL = "/order.put_limit"
 ORDER_CANCEL_PATH_URL = "/order.cancel"
+PENDING_ORDER_PATH_URL = "/order.pending"
+FINISHED_ORDER_PATH_URL = "/order.finished"
 
 WS_HEARTBEAT_TIME_INTERVAL = 30
 
@@ -36,15 +38,20 @@ SIDE_BUY = 2
 SIDE_SELL = 1
 
 # # Order States
+ORDER_STATE_CREATED = 1
+ORDER_STATE_UPDATED = 2
+ORDER_STATE_FINISHED = 3
 ORDER_STATE = {
-    0: OrderState.OPEN,
-    1: OrderState.OPEN,
-    8: OrderState.CANCELED,
+    ORDER_STATE_CREATED: OrderState.OPEN,
+    ORDER_STATE_UPDATED: OrderState.PARTIALLY_FILLED,
+    ORDER_STATE_FINISHED: OrderState.FILLED,
 }
 
 # # Websocket event types
 DIFF_EVENT_TYPE = "depth.update"
 TRADE_EVENT_TYPE = "deals.update"
+ORDER_EVENT_TYPE = "order.update"
+ASSET_EVENT_TYPE = "asset.update"
 
 RATE_LIMITS = [
     RateLimit(limit_id=TICKER_PRICE_CHANGE_PATH_URL, limit=10, time_interval=1),
@@ -54,6 +61,8 @@ RATE_LIMITS = [
     RateLimit(limit_id=ACCOUNTS_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=MY_TRADES_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=ORDER_PATH_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=ORDER_Limit_PATH_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=ORDER_CANCEL_PATH_URL, limit=10, time_interval=1)
+    RateLimit(limit_id=ORDER_LIMIT_PATH_URL, limit=10, time_interval=1),
+    RateLimit(limit_id=ORDER_CANCEL_PATH_URL, limit=10, time_interval=1),
+    RateLimit(limit_id=PENDING_ORDER_PATH_URL, limit=10, time_interval=1),
+    RateLimit(limit_id=FINISHED_ORDER_PATH_URL, limit=10, time_interval=1)
 ]

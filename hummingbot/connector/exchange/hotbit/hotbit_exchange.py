@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -17,9 +18,9 @@ from hummingbot.connector.exchange.hotbit.hotbit_auth import HotbitAuth
 from hummingbot.connector.exchange.hotbit.hotbit_order_book_tracker import HotbitOrderBookTracker
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.connector.utils import combine_to_hb_trading_pair
+from hummingbot.connector.utils import combine_to_hb_trading_pair, split_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
@@ -172,7 +173,7 @@ class HotbitExchange(ExchangePyBase):
                       "isfee": "0"}
 
         order_result_all = await self._api_post(
-            path_url=CONSTANTS.ORDER_Limit_PATH_URL,
+            path_url=CONSTANTS.ORDER_LIMIT_PATH_URL,
             data=api_params,
             is_auth_required=True)
         if order_result_all["error"] is not None:
@@ -183,11 +184,13 @@ class HotbitExchange(ExchangePyBase):
         return (o_id, transact_time)
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
+        print("_place_cancel", order_id)
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         api_params = {
             "market": symbol,
             "order_id": tracked_order.exchange_order_id,
         }
+        print(api_params)
         cancel_result = await self._api_post(
             path_url=CONSTANTS.ORDER_CANCEL_PATH_URL,
             data=api_params,
@@ -206,80 +209,253 @@ class HotbitExchange(ExchangePyBase):
         async for stream_message in self._iter_user_event_queue():
             try:
                 channel = stream_message.get("method")
+                print("_user_stream_event_listener", stream_message)
+                if channel == CONSTANTS.ORDER_EVENT_TYPE:
+                    order_type = stream_message.get("params")[0]
+                    data = stream_message.get("params")[1]
+                    exchange_id = str(data['id'])
+                    updatable_order = self.find_updatable_order(exchange_id)
+                    fillable_order = self.find_fillable_order(exchange_id)
 
-                if channel == CONSTANTS.TRADE_EVENT_TYPE:
-                    # TODO 不清楚返回的数据定义，id是否是orderId
-                    pass
+                    order_state = OrderState.OPEN
+                    update_timestamp = int(data["mtime"])
+                    has_fill = False
 
+                    if order_type == CONSTANTS.ORDER_STATE_CREATED:
+                        if data["deal_stock"] is not None and data["deal_stock"] != "" and not Decimal(data["deal_stock"]).is_zero():
+                            order_state = OrderState.PARTIALLY_FILLED
+                            has_fill = True
+                        else:
+                            order_state = OrderState.OPEN
+                    elif order_type == CONSTANTS.ORDER_STATE_UPDATED:
+                        order_state = OrderState.PARTIALLY_FILLED
+                        has_fill = True
+                    elif order_type == CONSTANTS.ORDER_STATE_FINISHED:
+                        if data["deal_stock"] is not None and data["deal_stock"] != "" and not Decimal(data["deal_stock"]).is_zero():
+                            order_state = OrderState.FAILED
+                            has_fill = True
+                        else:
+                            order_state = OrderState.CANCELED
+
+                    print("has_fill", has_fill)
+                    print("order_state", order_state)
+                    if fillable_order is not None and has_fill:
+                        trade_update = self.create_trade_update(fillable_order, data)
+                        self._order_tracker.process_trade_update(trade_update)
+
+                    if updatable_order is not None:
+                        order_update = OrderUpdate(
+                            trading_pair=updatable_order.trading_pair,
+                            update_timestamp=update_timestamp,
+                            new_state=order_state,
+                            client_order_id=updatable_order.client_order_id,
+                            exchange_order_id=updatable_order.exchange_order_id,
+                        )
+                        self._order_tracker.process_order_update(order_update=order_update)
+
+                elif channel == CONSTANTS.ASSET_EVENT_TYPE:
+                    assets = stream_message.get("params")
+                    for asset in assets:
+                        for asset_name in asset:
+                            asset_balance = asset[asset_name]
+                            free_balance = Decimal(asset_balance["available"])
+                            total_balance = Decimal(asset_balance["available"]) + Decimal(asset_balance["freeze"])
+                            self._account_available_balances[asset_name] = free_balance
+                            self._account_balances[asset_name] = total_balance
             except asyncio.CancelledError:
                 raise
             except Exception:
                 self.logger().exception("Unexpected error in user stream listener loop.")
                 await self._sleep(5.0)
 
+    def find_updatable_order(self, exchange_order_id: str):
+        for o in self._order_tracker.all_updatable_orders.values():
+            if o.exchange_order_id == exchange_order_id:
+                return o
+
+    def find_fillable_order(self, exchange_order_id: str):
+        for o in self._order_tracker.all_fillable_orders.values():
+            if o.exchange_order_id == exchange_order_id:
+                return o
+
+    def create_trade_update(self, fillable_order: InFlightOrder, update_data: Any) -> TradeUpdate:
+        order_fills = fillable_order.order_fills
+        executed_fee = Decimal(0)
+        for order_fill in order_fills.values():
+            print("create_trade_update order_fill", order_fill.to_json())
+            for flat_fee in order_fill.fee.flat_fees:
+                executed_fee += flat_fee.amount
+
+        current_fee = Decimal(update_data["deal_fee"]) - executed_fee
+        base, quote = split_hb_trading_pair(fillable_order.trading_pair)
+        fee = TradeFeeBase.new_spot_fee(
+            fee_schema=self.trade_fee_schema(),
+            trade_type=fillable_order.trade_type,
+            percent_token=quote,
+            flat_fees=[TokenAmount(amount=Decimal(current_fee), token=quote)]
+        )
+
+        current_deal_stock = Decimal(update_data["deal_stock"]) - fillable_order.executed_amount_base
+        current_deal_money = Decimal(update_data["deal_money"]) - fillable_order.executed_amount_quote
+        print("create_trade_update fill", current_deal_stock, current_deal_money, executed_fee)
+        return TradeUpdate(
+            trade_id=str(fillable_order.exchange_order_id) + "_" + str(len(fillable_order.order_fills.values()) + 1),
+            client_order_id=fillable_order.client_order_id,
+            exchange_order_id=fillable_order.exchange_order_id,
+            trading_pair=fillable_order.trading_pair,
+            fee=fee,
+            fill_base_amount=current_deal_stock,
+            fill_quote_amount=current_deal_money,
+            fill_price=update_data["price"],
+            fill_timestamp=int(update_data["mtime"]),
+        )
+
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
+        print("_all_trade_updates_for_order")
         trade_updates = []
 
-        if order.exchange_order_id is not None:
-            exchange_order_id = str(order.exchange_order_id)
-            trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
-            all_fills_response = await self._api_post(
-                path_url=CONSTANTS.MY_TRADES_PATH_URL,
-                data={
-                    "offset": "0",
-                    "order_id": exchange_order_id
-                },
-                is_auth_required=True,
-                limit_id=CONSTANTS.MY_TRADES_PATH_URL)
-            # TODO detail接口返回空数组，待处理
+        # if order.exchange_order_id is not None:
+        #     exchange_order_id = str(order.exchange_order_id)
+        #     trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
+        #     """
+        #     all_fills_response = await self._api_post(
+        #         path_url=CONSTANTS.MY_TRADES_PATH_URL,
+        #         data={
+        #             "offset": "0",
+        #             "order_id": exchange_order_id
+        #         },
+        #         is_auth_required=True,
+        #         limit_id=CONSTANTS.MY_TRADES_PATH_URL)
 
-            if all_fills_response["error"] is not None:
-                errorMsg = all_fills_response["message"] if all_fills_response["message"] is not None else ""
-                raise RuntimeError(f"_all_trade_updates_for_order error {errorMsg}")
-            all_fills = all_fills_response["result"]
-            for trade in all_fills["records"]:
-                exchange_order_id = str(trade["id"])
-                # TODO fee_stock 是否正常返回，否则拿pair里面的stock
-                fee = TradeFeeBase.new_spot_fee(
-                    fee_schema=self.trade_fee_schema(),
-                    trade_type=order.trade_type,
-                    percent_token=trade["fee_stock"],
-                    flat_fees=[TokenAmount(amount=Decimal(trade["deal_fee"]), token=trade["fee_stock"])]
-                )
-                trade_update = TradeUpdate(
-                    trade_id=str(trade["id"]),
-                    client_order_id=order.client_order_id,
-                    exchange_order_id=exchange_order_id,
-                    trading_pair=trading_pair,
-                    fee=fee,
-                    fill_base_amount=Decimal(trade["deal_stock"]),
-                    fill_quote_amount=Decimal(trade["deal_money"]),
-                    fill_price=Decimal(trade["price"]),
-                    fill_timestamp=trade["ctime"],
-                )
-                trade_updates.append(trade_update)
+        #     if all_fills_response["error"] is not None:
+        #         errorMsg = all_fills_response["message"] if all_fills_response["message"] is not None else ""
+        #         raise RuntimeError(f"_all_trade_updates_for_order error {errorMsg}")
+        #     all_fills = all_fills_response["result"]
+        #     """
+        #     finished_orders = {}
+        #     finished_offset = 0
+        #     finished_limit = 100
+        #     while True:
+        #         params = {
+        #                 "market": await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair),
+        #                 "start_time": str(int(order.creation_timestamp) - 10),
+        #                 "end_time": str(min(int(order.creation_timestamp) + 10, time.time())),
+        #                 "offset": str(finished_offset),
+        #                 "limit": str(finished_limit),
+        #                 "side": str(CONSTANTS.SIDE_BUY if order.trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL)}
+        #         print(params)
+        #         finished_order_data = await self._api_post(
+        #             path_url=CONSTANTS.FINISHED_ORDER_PATH_URL,
+        #             data=params,
+        #             is_auth_required=True)
+        #         print(finished_order_data)
+        #         if finished_order_data["error"] is not None:
+        #             errorMsg = finished_order_data["message"] if finished_order_data["message"] is not None else ""
+        #             raise RuntimeError(f"_request_order_status error {errorMsg}")
+        #         for finished_order in finished_order_data["result"]["records"]:
+        #             finished_orders[finished_order["id"]] = finished_order
+        #         if len(finished_order_data["result"]) < finished_limit:
+        #             break
+
+        #     # TODO 接口返回的不是fill order
+        #     order = finished_orders[order.exchange_order_id]
+        #     if order is None:
+        #         return trade_updates
+        #     exchange_order_id = str(order["id"])
+        #     base, quote = split_hb_trading_pair(trading_pair)
+        #     fee = TradeFeeBase.new_spot_fee(
+        #         fee_schema=self.trade_fee_schema(),
+        #         trade_type=order.trade_type,
+        #         percent_token=order["fee_stock"] if order["fee_stock"] is not None and order["fee_stock"] != "" else quote,
+        #         flat_fees=[TokenAmount(amount=Decimal(order["deal_fee"]), token=order["fee_stock"])]
+        #     )
+        #     trade_update = TradeUpdate(
+        #         trade_id=str(order["id"]),
+        #         client_order_id=order.client_order_id,
+        #         exchange_order_id=exchange_order_id,
+        #         trading_pair=trading_pair,
+        #         fee=fee,
+        #         fill_base_amount=Decimal(order["deal_stock"]),
+        #         fill_quote_amount=Decimal(order["deal_money"]),
+        #         fill_price=Decimal(order["price"]),
+        #         fill_timestamp=order["ctime"],
+        #     )
+        #     trade_updates.append(trade_update)
 
         return trade_updates
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
-        updated_order_data = (await self._api_post(
-            path_url=CONSTANTS.ORDER_PATH_URL,
-            data={
-                "offset": 0,
-                "order_id": tracked_order.client_order_id,
-                "limit": 100},
-            is_auth_required=True))["result"][0]
+        print("_request_order_status")
+        pending_orders = {}
+        pending_offset = 0
+        pending_limit = 100
+        trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
+        while True:
+            params = {
+                "market": trading_pair,
+                "offset": str(pending_offset),
+                "limit": str(pending_limit)}
+            print(CONSTANTS.PENDING_ORDER_PATH_URL, params)
+            pending_order_data = await self._api_post(
+                path_url=CONSTANTS.PENDING_ORDER_PATH_URL,
+                data=params,
+                is_auth_required=True,
+                limit_id=CONSTANTS.PENDING_ORDER_PATH_URL)
+            print(CONSTANTS.PENDING_ORDER_PATH_URL + " res", pending_order_data)
+            if pending_order_data["error"] is not None:
+                errorMsg = pending_order_data["message"] if pending_order_data["message"] is not None else ""
+                raise RuntimeError(f"_request_order_status error {errorMsg}")
 
-        new_state = CONSTANTS.ORDER_STATE[updated_order_data["status"]]
+            pending_records = pending_order_data["result"][trading_pair]["records"] if trading_pair in pending_order_data["result"] else []
+            for pending_order in pending_records:
+                pending_orders[str(pending_order["id"])] = pending_order
+            if len(pending_records) < pending_limit:
+                break
+
+        pending_order = pending_orders.get(tracked_order.exchange_order_id)
+        if pending_order is not None:
+            order_update = OrderUpdate(
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=tracked_order.exchange_order_id,
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=int(pending_order["mtime"]),
+                new_state=OrderState.OPEN
+            )
+            return order_update
+
+        params = {
+            "offset": "0",
+            "order_id": tracked_order.exchange_order_id}
+        print(CONSTANTS.MY_TRADES_PATH_URL, params)
+        finished_response = await self._api_post(
+            path_url=CONSTANTS.MY_TRADES_PATH_URL,
+            data=params,
+            is_auth_required=True,
+            limit_id=CONSTANTS.MY_TRADES_PATH_URL)
+        print(CONSTANTS.MY_TRADES_PATH_URL + " res", finished_response)
+        if finished_response["error"] is not None:
+            errorMsg = finished_response["message"] if finished_response["message"] is not None else ""
+            raise RuntimeError(f"_request_order_status error {errorMsg}")
+
+        finished_orders = finished_response["result"]["records"] if hasattr(finished_response["result"], "records") else []
+        if len(finished_orders) > 0:
+            finished_order = finished_orders[0]
+            order_update = OrderUpdate(
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=tracked_order.exchange_order_id,
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=int(finished_order["finish_time"]),
+                new_state=OrderState.FILLED,
+            )
+            return order_update
 
         order_update = OrderUpdate(
             client_order_id=tracked_order.client_order_id,
-            exchange_order_id=str(updated_order_data["id"]),
+            exchange_order_id=tracked_order.exchange_order_id,
             trading_pair=tracked_order.trading_pair,
-            update_timestamp=updated_order_data["mtime"],
-            new_state=new_state,
+            update_timestamp=time.time(),
+            new_state=OrderState.CANCELED,
         )
-
         return order_update
 
     async def _update_balances(self):

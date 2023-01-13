@@ -22,7 +22,6 @@ class HotbitAuth(AuthBase):
         """
         if request.method == RESTMethod.POST:
             request.data = self.add_auth_to_params(params=json.loads(request.data))
-            print(request.data)
             headers = request.headers if request.headers is not None else {}
             headers.update({
                 "Content-Type": "application/x-www-form-urlencoded"
@@ -42,6 +41,11 @@ class HotbitAuth(AuthBase):
 
     def add_auth_to_params(self,
                            params: Dict[str, Any]):
+        params['sign'] = self.sign(params)
+        # print(params)
+        return urlencode(params)
+
+    def sign(self, params: Dict[str, Any]):
         params['api_key'] = self.api_key
         paramsStr = json.dumps(params, sort_keys=True, indent=4)
         # print(paramsStr)
@@ -56,6 +60,4 @@ class HotbitAuth(AuthBase):
         hash_md5 = hashlib.md5(out_str.encode(encoding='utf-8'))
         sign = hash_md5.hexdigest().upper()
         # print(sign)
-        params['sign'] = sign
-        # print(params)
-        return urlencode(params)
+        return sign
