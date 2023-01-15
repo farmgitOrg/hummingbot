@@ -232,7 +232,7 @@ class HotbitExchange(ExchangePyBase):
                         has_fill = True
                     elif order_type == CONSTANTS.ORDER_STATE_FINISHED:
                         if data["deal_stock"] is not None and data["deal_stock"] != "" and not Decimal(data["deal_stock"]).is_zero():
-                            order_state = OrderState.FAILED
+                            order_state = OrderState.FILLED
                             has_fill = True
                         else:
                             order_state = OrderState.CANCELED
