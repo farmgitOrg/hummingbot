@@ -47,6 +47,11 @@ ORDER_STATE = {
     ORDER_STATE_FINISHED: OrderState.FILLED,
 }
 
+FINISHED_STATE = {
+    0: OrderState.FILLED,
+    8: OrderState.CANCELED,
+}
+
 # # Websocket event types
 DIFF_EVENT_TYPE = "depth.update"
 TRADE_EVENT_TYPE = "deals.update"

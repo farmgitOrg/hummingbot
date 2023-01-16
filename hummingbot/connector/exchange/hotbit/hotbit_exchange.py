@@ -192,11 +192,11 @@ class HotbitExchange(ExchangePyBase):
             "market": symbol,
             "order_id": tracked_order.exchange_order_id,
         }
-        self.logger().info(f"_place_cancel res {api_params}")
         cancel_result = await self._api_post(
             path_url=CONSTANTS.ORDER_CANCEL_PATH_URL,
             data=api_params,
             is_auth_required=True)
+        self.logger().info(f"_place_cancel res {cancel_result}")
         if cancel_result["error"] is None:
             return True
         return False
@@ -224,7 +224,7 @@ class HotbitExchange(ExchangePyBase):
                     has_fill = False
 
                     if order_type == CONSTANTS.ORDER_STATE_CREATED:
-                        if data["deal_stock"] is not None and data["deal_stock"] != "" and not Decimal(data["deal_stock"]).is_zero():
+                        if not self.is_zero(data["deal_stock"]):
                             order_state = OrderState.PARTIALLY_FILLED
                             has_fill = True
                         else:
@@ -233,7 +233,7 @@ class HotbitExchange(ExchangePyBase):
                         order_state = OrderState.PARTIALLY_FILLED
                         has_fill = True
                     elif order_type == CONSTANTS.ORDER_STATE_FINISHED:
-                        if data["deal_stock"] is not None and data["deal_stock"] != "" and not Decimal(data["deal_stock"]).is_zero():
+                        if not self.is_zero(data["deal_stock"]):
                             order_state = OrderState.FILLED
                             has_fill = True
                         else:
@@ -397,6 +397,7 @@ class HotbitExchange(ExchangePyBase):
                 new_state=tracked_order.current_state,
             )
 
+        """ pending state: OPEN / PARTIALLY_FILLED, PARTIALLY_FILLED if data["deal_stock"] is not zero """
         pending_orders = {}
         pending_offset = 0
         pending_limit = 100
@@ -431,10 +432,11 @@ class HotbitExchange(ExchangePyBase):
                 exchange_order_id=tracked_order.exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=int(pending_order["mtime"]),
-                new_state=OrderState.OPEN
+                new_state=OrderState.OPEN if self.is_zero(pending_order["deal_stock"]) else OrderState.PARTIALLY_FILLED
             )
             return order_update
 
+        """ finish state: FILLED / CANCELED(PARTIALLY_FILLED then cancel), CANCELED if data["status"] == 8 """
         params = {
             "offset": "0",
             "order_id": tracked_order.exchange_order_id}
@@ -457,7 +459,7 @@ class HotbitExchange(ExchangePyBase):
                 exchange_order_id=tracked_order.exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=int(finished_order["finish_time"]),
-                new_state=OrderState.FILLED,
+                new_state=CONSTANTS.FINISHED_STATE[finished_order["status"]],
             )
             return order_update
 
@@ -543,3 +545,6 @@ class HotbitExchange(ExchangePyBase):
         for symbol_data in filter(hotbit_utils.is_exchange_information_valid, exchange_info["result"]):
             mapping[symbol_data["name"]] = combine_to_hb_trading_pair(base=symbol_data["stock"], quote=symbol_data["money"])
         self._set_trading_pair_symbol_map(mapping)
+
+    def is_zero(self, num: str):
+        return num is None or num == "" or Decimal(num).is_zero()
