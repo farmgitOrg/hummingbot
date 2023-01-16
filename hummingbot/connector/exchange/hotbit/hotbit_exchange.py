@@ -389,7 +389,7 @@ class HotbitExchange(ExchangePyBase):
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         self.logger().info(f"_request_order_status client_order_id:{tracked_order.client_order_id} exchange_order_id:{tracked_order.exchange_order_id}")
         if not tracked_order.exchange_order_id:
-            order_update = OrderUpdate(
+            return OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=tracked_order.exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
@@ -422,6 +422,7 @@ class HotbitExchange(ExchangePyBase):
                 pending_orders[str(pending_order["id"])] = pending_order
             if len(pending_records) < pending_limit:
                 break
+            pending_offset += 1
 
         pending_order = pending_orders.get(tracked_order.exchange_order_id)
         if pending_order is not None:
@@ -448,7 +449,7 @@ class HotbitExchange(ExchangePyBase):
             errorMsg = finished_response["message"] if finished_response["message"] is not None else ""
             raise RuntimeError(f"_request_order_status error {errorMsg}")
 
-        finished_orders = finished_response["result"]["records"] if hasattr(finished_response["result"], "records") else []
+        finished_orders = finished_response["result"]["records"] if "records" in finished_response["result"] else []
         if len(finished_orders) > 0:
             finished_order = finished_orders[0]
             order_update = OrderUpdate(
