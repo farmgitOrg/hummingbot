@@ -133,6 +133,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self._taker_to_maker_order_ids = {}
         # Holds hedging trade ids for respective maker orders
         self._maker_to_hedging_trades = {}
+        
+        self._order_id_to_order_level = {}
 
         all_markets = list(self._maker_markets | self._taker_markets)
 
@@ -424,29 +426,33 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
     async def main(self, timestamp: float):
         try:
-            # Calculate a mapping from market pair to list of active limit orders on the market.
-            market_pair_to_active_orders = defaultdict(list)
+            for order_level in [0,1,2,3,4]:
+                # Calculate a mapping from market pair to list of active limit orders on the market.
+                market_pair_to_active_orders = defaultdict(list)
 
-            for maker_market, limit_order, order_id in self.active_maker_limit_orders:
-                market_pair = self._market_pairs.get((maker_market, limit_order.trading_pair))
-                if market_pair is None:
-                    self.log_with_clock(logging.WARNING,
-                                        f"The in-flight maker order in for the trading pair '{limit_order.trading_pair}' "
-                                        f"does not correspond to any whitelisted trading pairs. Skipping.")
-                    continue
+                for maker_market, limit_order, order_id in self.active_maker_limit_orders:
+                    if (self._order_id_to_order_level[limit_order.client_order_id] != order_level):
+                        continue  # skip
+                    market_pair = self._market_pairs.get((maker_market, limit_order.trading_pair))
+                    if market_pair is None:
+                        self.log_with_clock(logging.WARNING,
+                                            f"The in-flight maker order in for the trading pair '{limit_order.trading_pair}' "
+                                            f"does not correspond to any whitelisted trading pairs. Skipping.")
+                        continue
 
-                if not self._sb_order_tracker.has_in_flight_cancel(limit_order.client_order_id) and \
-                        limit_order.client_order_id in self._maker_to_taker_order_ids.keys():
-                    market_pair_to_active_orders[market_pair].append(limit_order)
+                    if not self._sb_order_tracker.has_in_flight_cancel(limit_order.client_order_id) and \
+                            limit_order.client_order_id in self._maker_to_taker_order_ids.keys():
+                        market_pair_to_active_orders[market_pair].append(limit_order)
 
-            # Process each market pair independently.
-            for market_pair in self._market_pairs.values():
-                await self.process_market_pair(timestamp, market_pair, market_pair_to_active_orders[market_pair])
+                # Process each market pair independently.
+                for market_pair in self._market_pairs.values():
+                    self.logger().warning("##@@## call process_market_pair: ", market_pair)
+                    await self.process_market_pair(timestamp, market_pair, market_pair_to_active_orders[market_pair], order_level)
 
-            # log conversion rates every 5 minutes
-            if self._last_conv_rates_logged + (60. * 5) < timestamp:
-                self.log_conversion_rates()
-                self._last_conv_rates_logged = timestamp
+                # log conversion rates every 5 minutes
+                if self._last_conv_rates_logged + (60. * 5) < timestamp:
+                    self.log_conversion_rates()
+                    self._last_conv_rates_logged = timestamp
         finally:
             self._last_timestamp = timestamp
 
@@ -494,7 +500,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 return True
         return False
 
-    async def process_market_pair(self, timestamp: float, market_pair: MarketTradingPairTuple, active_orders: List):
+    async def process_market_pair(self, timestamp: float, market_pair: MarketTradingPairTuple, active_orders: List, order_level: int):
         """
         For market pair being managed by this strategy object, do the following:
 
@@ -572,7 +578,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             return
 
         # See if it's profitable to place a limit order on maker market.
-        await self.check_and_create_new_orders(market_pair, has_active_bid, has_active_ask)
+        await self.check_and_create_new_orders(market_pair, has_active_bid, has_active_ask, order_level)
 
     async def hedge_filled_maker_order(self, order_filled_event):
         """
@@ -722,7 +728,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Remove the completed fully hedged maker order
                         del self._maker_to_taker_order_ids[maker_order_id]
                         del self._maker_to_hedging_trades[maker_order_id]
-
+                        del self._order_id_to_order_level[maker_order_id]
                 try:
                     maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
                     del self._ongoing_hedging[maker_exchange_trade_id]
@@ -790,6 +796,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Remove the completed fully hedged maker order
                         del self._maker_to_taker_order_ids[maker_order_id]
                         del self._maker_to_hedging_trades[maker_order_id]
+                        del self._order_id_to_order_level[maker_order_id]
 
                 try:
                     maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
@@ -844,7 +851,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
         return True
 
-    async def check_and_hedge_orders(self, market_pair: MakerTakerMarketPair):
+    async def check_and_hedge_orders(self, market_pair: MakerTakerMarketPair, order_level):
         """
         Look into the stored and un-hedged limit order fill events, and emit orders to hedge them, depending on
         availability of funds on the taker market.
@@ -924,6 +931,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     False,
                     quantized_hedge_amount,
                     order_price,
+                    order_level,
                     maker_order_id,
                     maker_exchange_trade_id
                 )
@@ -1014,6 +1022,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     False,
                     quantized_hedge_amount,
                     order_price,
+                    order_level,
                     maker_order_id,
                     maker_exchange_trade_id
                 )
@@ -1634,7 +1643,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
     async def check_and_create_new_orders(self,
                                           market_pair: MarketTradingPairTuple,
                                           has_active_bid: bool,
-                                          has_active_ask: bool):
+                                          has_active_ask: bool,
+                                          order_level:int):
         """
         Check and account for all applicable conditions for creating new limit orders (e.g. profitability, what's the
         right price given depth tolerance and transient orders on the market, account balances, etc.), and create new
@@ -1644,6 +1654,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         :param has_active_bid: True if there's already an active bid on the maker side, False otherwise
         :param has_active_ask: True if there's already an active ask on the maker side, False otherwise
         """
+        self.log_with_clock( logging.INFO, f"check_and_create_new_orders: limit order for level {order_level} ")
 
         # if there is no active bid, place bid again
         if not has_active_bid:
@@ -1662,13 +1673,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.CREATE_ORDER in self.logging_options:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}) Creating limit bid order for "
+                            f"({market_pair.maker.trading_pair}), order_level ${order_level}, Creating limit bid order for "
                             f"{bid_size} {market_pair.maker.base_asset} at "
                             f"{bid_price} {market_pair.maker.quote_asset}. "
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    self.place_order(market_pair, True, True, bid_size, bid_price)
+                    self.place_order(market_pair, True, True, bid_size, bid_price, order_level)
                 else:
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
@@ -1701,13 +1712,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.CREATE_ORDER in self.logging_options:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}) Creating limit ask order for "
+                            f"({market_pair.maker.trading_pair}), order_level ${order_level}, Creating limit ask order for "
                             f"{ask_size} {market_pair.maker.base_asset} at "
                             f"{ask_price} {market_pair.maker.quote_asset}. "
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    self.place_order(market_pair, False, True, ask_size, ask_price)
+                    self.place_order(market_pair, False, True, ask_size, ask_price, order_level)
                 else:
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
@@ -1730,6 +1741,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     is_maker: bool,  # True for maker order, False for taker order
                     amount: Decimal,
                     price: Decimal,
+                    order_level:int,
                     maker_order_id: str = None,
                     maker_exchange_trade_id: str = None):
         expiration_seconds = s_float_nan
@@ -1767,6 +1779,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             self._taker_to_maker_order_ids[order_id] = maker_order_id
             self._maker_to_taker_order_ids[maker_order_id] += [order_id]
             self._ongoing_hedging[maker_exchange_trade_id] = order_id
+        self._order_id_to_order_level[order_id] = order_level;
         return order_id
 
     def cancel_maker_order(self, market_pair: MakerTakerMarketPair, order_id: str):
