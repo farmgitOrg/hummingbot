@@ -139,10 +139,15 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         all_markets = list(self._maker_markets | self._taker_markets)
 
         self.add_markets(all_markets)
+        self.log_with_clock(logging.INFO, f"Order levels: {self.order_levels}")
 
     @property
     def order_amount(self):
         return self._config_map.order_amount
+    
+    @property
+    def order_levels(self):
+        return self._config_map.order_levels
 
     @property
     def min_profitability(self):
@@ -426,7 +431,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
     async def main(self, timestamp: float):
         try:
-            for order_level in [0,1,2,3,4]:
+            for order_level in range(1, self.order_levels+1):
                 # Calculate a mapping from market pair to list of active limit orders on the market.
                 market_pair_to_active_orders = defaultdict(list)
 

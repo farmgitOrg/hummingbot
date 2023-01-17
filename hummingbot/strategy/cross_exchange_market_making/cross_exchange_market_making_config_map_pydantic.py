@@ -248,6 +248,16 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
             prompt_on_new=True,
         )
     )
+    order_levels: int = Field(
+        default = 1,
+        description="Order levels for bid/ask on maker market.",
+        client_data=ClientFieldData(
+            prompt=lambda mi: (
+                "How may bid/ask order levels do you want to place on maker market"
+            ),
+            prompt_on_new=True,
+        ),
+    )
     adjust_order_enabled: bool = Field(
         default=True,
         description="Adjust order price to be one tick above the top bid or below the top ask.",
