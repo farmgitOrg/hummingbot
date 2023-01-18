@@ -133,21 +133,34 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self._taker_to_maker_order_ids = {}
         # Holds hedging trade ids for respective maker orders
         self._maker_to_hedging_trades = {}
-        
-        self._order_id_to_order_level = {}
+        # order_level 0 stands for the first order
+        self.maker_order_id_to_order_level = {}
 
         all_markets = list(self._maker_markets | self._taker_markets)
 
         self.add_markets(all_markets)
-        self.log_with_clock(logging.INFO, f"Order levels: {self.order_levels}")
+        self.log_with_clock(logging.INFO, f"order_levels: {self.order_levels}")
+        self.log_with_clock(logging.INFO, f"order_level_amount: {self.order_level_amount}")
+        self.log_with_clock(logging.INFO, f"order_level_spread: {self.order_level_spread}")
 
     @property
     def order_amount(self):
         return self._config_map.order_amount
     
+    # order_level 0 stands for the first order
     @property
     def order_levels(self):
         return self._config_map.order_levels
+
+    # order size, in base asset
+    @property
+    def order_level_amount(self):
+        return self._config_map.order_level_amount
+
+    #order price, in quote asset
+    @property
+    def order_level_spread(self):
+        return self._config_map.order_level_spread / Decimal("100")
 
     @property
     def min_profitability(self):
@@ -431,12 +444,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
     async def main(self, timestamp: float):
         try:
-            for order_level in range(1, self.order_levels+1):
+            for order_level in range(0, self.order_levels):
                 # Calculate a mapping from market pair to list of active limit orders on the market.
                 market_pair_to_active_orders = defaultdict(list)
 
                 for maker_market, limit_order, order_id in self.active_maker_limit_orders:
-                    if (self._order_id_to_order_level[limit_order.client_order_id] != order_level):
+                    if (self.maker_order_id_to_order_level[limit_order.client_order_id] != order_level):
                         continue  # skip
                     market_pair = self._market_pairs.get((maker_market, limit_order.trading_pair))
                     if market_pair is None:
@@ -565,7 +578,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             # If prices have moved, one side is still profitable, here cancel and
             # place at the next tick.
             if timestamp > anti_hysteresis_timer:
-                if not await self.check_if_price_has_drifted(market_pair, active_order):
+                if not await self.check_if_price_has_drifted(market_pair, active_order, order_level):
                     need_adjust_order = True
                     continue
 
@@ -733,7 +746,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Remove the completed fully hedged maker order
                         del self._maker_to_taker_order_ids[maker_order_id]
                         del self._maker_to_hedging_trades[maker_order_id]
-                        del self._order_id_to_order_level[maker_order_id]
+                        del self.maker_order_id_to_order_level[maker_order_id]
                 try:
                     maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
                     del self._ongoing_hedging[maker_exchange_trade_id]
@@ -801,7 +814,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Remove the completed fully hedged maker order
                         del self._maker_to_taker_order_ids[maker_order_id]
                         del self._maker_to_hedging_trades[maker_order_id]
-                        del self._order_id_to_order_level[maker_order_id]
+                        del self.maker_order_id_to_order_level[maker_order_id]
 
                 try:
                     maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
@@ -820,7 +833,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 if len(self._order_fill_buy_events[market_pair]) == 0:
                     del self._order_fill_buy_events[market_pair]
 
-    async def check_if_price_has_drifted(self, market_pair: MakerTakerMarketPair, active_order: LimitOrder):
+    async def check_if_price_has_drifted(self, market_pair: MakerTakerMarketPair, active_order: LimitOrder, order_level: int):
         """
         Given a currently active limit order on maker side, check if its current price is still valid, based on the
         current hedging price on taker market, depth tolerance, and transient orders on the maker market captured by
@@ -837,7 +850,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         is_buy = active_order.is_buy
         order_price = active_order.price
         order_quantity = active_order.quantity
-        suggested_price = await self.get_market_making_price(market_pair, is_buy, order_quantity)
+        suggested_price = await self.get_market_making_price(market_pair, is_buy, order_quantity, order_level)
 
         if suggested_price != order_price:
             if LogOption.ADJUST_ORDER in self.logging_options:
@@ -856,13 +869,14 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
         return True
 
-    async def check_and_hedge_orders(self, market_pair: MakerTakerMarketPair, order_level):
+    async def check_and_hedge_orders(self, market_pair: MakerTakerMarketPair):
         """
         Look into the stored and un-hedged limit order fill events, and emit orders to hedge them, depending on
         availability of funds on the taker market.
 
         :param market_pair: cross exchange market pair
         """
+        order_level = -1; # it doesn't matter for taker order, we only care about maker order.
         taker_trading_pair = market_pair.taker.trading_pair
         buy_fill_records = self._order_fill_buy_events.get(market_pair, [])
         sell_fill_records = self._order_fill_sell_events.get(market_pair, [])
@@ -1047,7 +1061,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     f"allowed on the taker market. No hedging possible yet."
                 )
 
-    def get_adjusted_limit_order_size(self, market_pair: MakerTakerMarketPair) -> Tuple[Decimal, Decimal]:
+    def get_adjusted_limit_order_size(self, market_pair: MakerTakerMarketPair, order_level: int) -> Tuple[Decimal, Decimal]:
         """
         Given the proposed order size of a proposed limit order (regardless of bid or ask), adjust and refine the order
         sizing according to either the trade size override setting (if it exists), or the portfolio ratio limit (if
@@ -1063,7 +1077,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         trading_pair = market_pair.maker.trading_pair
         if self._config_map.order_amount and self._config_map.order_amount > 0:
             base_order_size = self._config_map.order_amount
-            return maker_market.quantize_order_amount(trading_pair, Decimal(base_order_size))
+            order_size = base_order_size + order_level * self.order_level_amount
+            return maker_market.quantize_order_amount(trading_pair, Decimal(order_size))
         else:
             return self.get_order_size_after_portfolio_ratio_limit(market_pair)
 
@@ -1091,7 +1106,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
     async def get_market_making_size(self,
                                      market_pair: MakerTakerMarketPair,
-                                     is_bid: bool):
+                                     is_bid: bool,
+                                     order_level: int):
         """
         Get the ideal market making order size given a market pair and a side.
 
@@ -1109,7 +1125,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         taker_market = market_pair.taker.market
 
         # Maker order size (in base asset)
-        size = self.get_adjusted_limit_order_size(market_pair)
+        size = self.get_adjusted_limit_order_size(market_pair, order_level)
 
         # Convert maker order size (in maker base asset) to taker order size (in taker base asset)
         _, _, quote_rate, _, _, base_rate, _, _, _ = self.get_conversion_rates(market_pair)
@@ -1188,7 +1204,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
     async def get_market_making_price(self,
                                       market_pair: MarketTradingPairTuple,
                                       is_bid: bool,
-                                      size: Decimal):
+                                      size: Decimal,
+                                      order_level: int):
         """
         Get the ideal market making order price given a market pair, side and size.
 
@@ -1245,7 +1262,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             taker_price *= self.markettaker_to_maker_base_conversion_rate(market_pair)
 
             # you are buying on the maker market and selling on the taker market
-            maker_price = taker_price / (1 + self.min_profitability)
+            maker_price = taker_price / (1 + self.min_profitability + order_level * self.order_level_spread)
 
             # # If your bid is higher than highest bid price, reduce it to one tick above the top bid price
             if self.adjust_order_enabled:
@@ -1290,7 +1307,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             taker_price *= self.markettaker_to_maker_base_conversion_rate(market_pair)
 
             # You are selling on the maker market and buying on the taker market
-            maker_price = taker_price * (1 + self.min_profitability)
+            maker_price = taker_price * (1 + self.min_profitability + order_level * self.order_level_spread)
 
             # If your ask is lower than the the top ask, increase it to just one tick below top ask
             if self.adjust_order_enabled:
@@ -1572,7 +1589,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         is_buy = active_order.is_buy
         order_price = active_order.price
         # Maker order size
-        size = self.get_adjusted_limit_order_size(market_pair)
+        size = self.get_adjusted_limit_order_size(market_pair, order_level)
         maker_market = market_pair.maker.market
         taker_trading_pair = market_pair.taker.trading_pair
 
@@ -1663,10 +1680,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
         # if there is no active bid, place bid again
         if not has_active_bid:
-            bid_size = await self.get_market_making_size(market_pair, True)
+            bid_size = await self.get_market_making_size(market_pair, True, order_level)
 
             if bid_size > s_decimal_zero:
-                bid_price = await self.get_market_making_price(market_pair, True, bid_size)
+                bid_price = await self.get_market_making_price(market_pair, True, bid_size, order_level)
                 if not Decimal.is_nan(bid_price):
                     effective_hedging_price = await self.calculate_effective_hedging_price(
                         market_pair,
@@ -1702,10 +1719,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     )
         # if there is no active ask, place ask again
         if not has_active_ask:
-            ask_size = await self.get_market_making_size(market_pair, False)
+            ask_size = await self.get_market_making_size(market_pair, False, order_level)
 
             if ask_size > s_decimal_zero:
-                ask_price = await self.get_market_making_price(market_pair, False, ask_size)
+                ask_price = await self.get_market_making_price(market_pair, False, ask_size, order_level)
                 if not Decimal.is_nan(ask_price):
                     effective_hedging_price = await self.calculate_effective_hedging_price(
                         market_pair,
@@ -1780,11 +1797,11 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self._market_pair_tracker.start_tracking_order_id(order_id, market_info.market, market_pair)
         if is_maker:
             self._maker_to_taker_order_ids[order_id] = []
+            self.maker_order_id_to_order_level[order_id] = order_level;
         else:
             self._taker_to_maker_order_ids[order_id] = maker_order_id
             self._maker_to_taker_order_ids[maker_order_id] += [order_id]
             self._ongoing_hedging[maker_exchange_trade_id] = order_id
-        self._order_id_to_order_level[order_id] = order_level;
         return order_id
 
     def cancel_maker_order(self, market_pair: MakerTakerMarketPair, order_id: str):

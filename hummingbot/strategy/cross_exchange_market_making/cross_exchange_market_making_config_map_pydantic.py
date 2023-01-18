@@ -248,12 +248,32 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
             prompt_on_new=True,
         )
     )
+    order_level_amount: Decimal = Field(
+        default=...,
+        description="Order size increase/decrease for additional orders, from the first order as base.",
+        ge=0.0,
+        client_data=ClientFieldData(
+            prompt=lambda mi: "How much do you want to increase or decrease the order size for each additional order? (decrease < 0 > increase) (base, base + order_level_amount, base + 2*order_level_amount",
+            prompt_on_new=True,
+        ),
+    )
+    order_level_spread: Decimal = Field(
+        default=...,
+        description="Order price increase/decrease (as percentage)  for additional orders, from the first order as base",
+        ge=-100.0,
+        le=100.0,
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the price increments for subsequent orders? (Enter 1 to indicate 1%)"
+            prompt_on_new=True,
+        )
+    )
     order_levels: int = Field(
         default = 1,
         description="Order levels for bid/ask on maker market.",
+        ge=1,
         client_data=ClientFieldData(
             prompt=lambda mi: (
-                "How may bid/ask order levels do you want to place on maker market"
+                "How may bid/ask order levels do you want to place on maker market? (Enter 1 to indicate 1 bid & 1 ask orders)"
             ),
             prompt_on_new=True,
         ),
@@ -398,6 +418,12 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
         trading_pair = model_instance.maker_market_trading_pair
         base_asset, quote_asset = trading_pair.split("-")
         return f"What is the amount of {base_asset} per order?"
+
+    @classmethod
+    def order_amount_incr_step_prompt(cls, model_instance: 'CrossExchangeMarketMakingConfigMap') -> str:
+        trading_pair = model_instance.maker_market_trading_pair
+        base_asset, quote_asset = trading_pair.split("-")
+        return f"What is the amount increment step of {base_asset} per order?"
 
     # === specific validations ===
     @validator("order_refresh_mode", pre=True)
