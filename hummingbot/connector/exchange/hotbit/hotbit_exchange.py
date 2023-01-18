@@ -243,7 +243,8 @@ class HotbitExchange(ExchangePyBase):
                     self.logger().info(f"order_state {order_state}")
                     if fillable_order is not None and has_fill:
                         trade_update = self.create_trade_update(fillable_order, data)
-                        self._order_tracker.process_trade_update(trade_update)
+                        if trade_update is not None:
+                            self._order_tracker.process_trade_update(trade_update)
 
                     if updatable_order is not None:
                         order_update = OrderUpdate(
@@ -299,7 +300,9 @@ class HotbitExchange(ExchangePyBase):
 
         current_deal_stock = Decimal(update_data["deal_stock"]) - fillable_order.executed_amount_base
         current_deal_money = Decimal(update_data["deal_money"]) - fillable_order.executed_amount_quote
-        self.logger().info(f"create_trade_update fill {current_deal_stock} {current_deal_money} {executed_fee}")
+        self.logger().info(f"create_trade_update fill {current_deal_stock} {current_deal_money} {current_fee}")
+        if current_deal_stock.is_zero():
+            return None
         return TradeUpdate(
             trade_id=str(fillable_order.exchange_order_id) + "_" + str(len(fillable_order.order_fills.values()) + 1),
             client_order_id=fillable_order.client_order_id,
