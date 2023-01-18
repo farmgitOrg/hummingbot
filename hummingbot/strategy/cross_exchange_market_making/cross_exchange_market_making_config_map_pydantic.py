@@ -263,9 +263,9 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
         ge=-100.0,
         le=100.0,
         client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the price increments for subsequent orders? (Enter 1 to indicate 1%)"
+            prompt=lambda mi: "Enter the price increments for subsequent orders? (Enter 1 to indicate 1%)",
             prompt_on_new=True,
-        )
+        ),
     )
     order_levels: int = Field(
         default = 1,

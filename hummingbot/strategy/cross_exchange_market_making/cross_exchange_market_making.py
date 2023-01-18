@@ -572,7 +572,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
             # See if I still have enough balance on my wallet to fill the order on maker market, and to hedge the
             # order on taker market. If not, adjust it.
-            if not await self.check_if_sufficient_balance(market_pair, active_order):
+            if not await self.check_if_sufficient_balance(market_pair, active_order, order_level):
                 continue
 
             # If prices have moved, one side is still profitable, here cancel and
@@ -1574,7 +1574,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             return False
         return True
 
-    async def check_if_sufficient_balance(self, market_pair: MakerTakerMarketPair, active_order: LimitOrder) -> bool:
+    async def check_if_sufficient_balance(self, market_pair: MakerTakerMarketPair, active_order: LimitOrder, order_level: int) -> bool:
         """
         Check whether there's enough asset balance for a currently active limit order. If there's not enough asset
         balance for the order (e.g. because the required asset has been moved), cancel the active order.
