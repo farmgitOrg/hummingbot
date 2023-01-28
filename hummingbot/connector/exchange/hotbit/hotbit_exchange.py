@@ -311,7 +311,7 @@ class HotbitExchange(ExchangePyBase):
             fee=fee,
             fill_base_amount=current_deal_stock,
             fill_quote_amount=current_deal_money,
-            fill_price=update_data["price"],
+            fill_price=Decimal(update_data["price"]),
             fill_timestamp=int(update_data["mtime"]),
         )
 
