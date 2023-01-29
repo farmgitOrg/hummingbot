@@ -142,6 +142,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self.log_with_clock(logging.INFO, f"order_levels: {self.order_levels}")
         self.log_with_clock(logging.INFO, f"order_level_amount: {self.order_level_amount}")
         self.log_with_clock(logging.INFO, f"order_level_spread: {self.order_level_spread}")
+        self.log_with_clock(logging.INFO, f"hedge_min_quantity: {self.hedge_min_quantity}")
 
     @property
     def order_amount(self):
@@ -151,6 +152,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
     @property
     def order_levels(self):
         return self._config_map.order_levels
+
+    @property
+    def hedge_min_quantity(self):
+        return self._config_map.hedge_min_quantity
 
     # order size, in base asset
     @property
@@ -899,6 +904,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         _, _, quote_rate, _, _, base_rate, _, _, _ = self.get_conversion_rates(market_pair)
 
         if buy_fill_quantity > 0:
+            if buy_fill_quantity < hedge_min_quantity:
+                self.logger().warning(f"buy_fill_quantity ({buy_fill_quanity}) < hedge_min_quantity ({hedge_min_quantity}), skip")
+                return
             # Maker buy
             # Taker sell
             taker_slippage_adjustment_factor = Decimal("1") - self.slippage_buffer
@@ -918,10 +926,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
             if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
                 self.logger().error("Multiple buy maker orders fills")
-                return
+                self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
 
-            maker_order_id = maker_order_ids[0]
-            maker_exchange_trade_id = maker_exchange_trade_ids[0]
+            # maker_order_id = maker_order_ids[0]
+            # maker_exchange_trade_id = maker_exchange_trade_ids[0]
 
             if self.is_gateway_market(market_pair.taker):
                 order_price = await market_pair.taker.market.get_order_price(
@@ -951,8 +959,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     quantized_hedge_amount,
                     order_price,
                     order_level,
-                    maker_order_id,
-                    maker_exchange_trade_id
+                    maker_order_ids,
+                    maker_exchange_trade_ids
                 )
 
                 if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
@@ -971,6 +979,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 )
 
         if sell_fill_quantity > 0:
+            if sell_fill_quantity < hedge_min_quantity:
+                self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({hedge_min_quantity}), skip")
+                return
             # Maker sell
             # Taker buy
             taker_slippage_adjustment_factor = Decimal("1") + self.slippage_buffer
@@ -1009,10 +1020,11 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
             if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
                 self.logger().error("Multiple sell maker orders fills")
-                return
+                self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
 
-            maker_order_id = maker_order_ids[0]
-            maker_exchange_trade_id = maker_exchange_trade_ids[0]
+
+            # maker_order_id = maker_order_ids[0]
+            # maker_exchange_trade_id = maker_exchange_trade_ids[0]
 
             if self.is_gateway_market(market_pair.taker):
                 order_price = await market_pair.taker.market.get_order_price(
@@ -1042,8 +1054,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     quantized_hedge_amount,
                     order_price,
                     order_level,
-                    maker_order_id,
-                    maker_exchange_trade_id
+                    maker_order_ids,
+                    maker_exchange_trade_ids
                 )
 
                 if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
@@ -1764,8 +1776,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     amount: Decimal,
                     price: Decimal,
                     order_level:int,
-                    maker_order_id: str = None,
-                    maker_exchange_trade_id: str = None):
+                    maker_order_ids: [str] = None,
+                    maker_exchange_trade_ids: [str] = None):
         expiration_seconds = s_float_nan
         market_info = market_pair.maker if is_maker else market_pair.taker
         # Market orders are not being submitted as taker orders, limit orders are preferred at all times
@@ -1799,9 +1811,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             self._maker_to_taker_order_ids[order_id] = []
             self.maker_order_id_to_order_level[order_id] = order_level;
         else:
-            self._taker_to_maker_order_ids[order_id] = maker_order_id
-            self._maker_to_taker_order_ids[maker_order_id] += [order_id]
-            self._ongoing_hedging[maker_exchange_trade_id] = order_id
+            for i in range(len(maker_order_ids)):
+                maker_order_id = maker_order_ids[i]
+                maker_exchange_trade_id = maker_exchange_trade_ids[i]
+                self._taker_to_maker_order_ids[order_id] = maker_order_id
+                self._maker_to_taker_order_ids[maker_order_id] += [order_id]
+                self._ongoing_hedging[maker_exchange_trade_id] = order_id
         return order_id
 
     def cancel_maker_order(self, market_pair: MakerTakerMarketPair, order_id: str):

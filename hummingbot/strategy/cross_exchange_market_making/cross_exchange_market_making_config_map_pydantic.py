@@ -239,6 +239,15 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
             prompt_on_new=True,
         ),
     )
+    hedge_min_quantity: int = Field(
+        default = ...,
+        description="Min order amount for hedging.",
+        gt=0.0,
+        client_data=ClientFieldData(
+            prompt=lambda mi: CrossExchangeMarketMakingConfigMap.hedge_min_quantity_prompt(mi),
+            prompt_on_new=True,
+        )
+    )
     order_amount: Decimal = Field(
         default=...,
         description="The strategy order amount.",
@@ -412,6 +421,12 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
         maker_market = model_instance.maker_market_trading_pair
         base_asset, quote_asset = maker_market.split("-")
         return f"What is your top depth tolerance? (in {base_asset})"
+
+    @classmethod
+    def hedge_min_quantity_prompt(cls, model_instance: 'CrossExchangeMarketMakingConfigMap') -> str:
+        trading_pair = model_instance.maker_market_trading_pair
+        base_asset, quote_asset = trading_pair.split("-")
+        return f"What is the min hedge amount of {base_asset} per order?"
 
     @classmethod
     def order_amount_prompt(cls, model_instance: 'CrossExchangeMarketMakingConfigMap') -> str:
