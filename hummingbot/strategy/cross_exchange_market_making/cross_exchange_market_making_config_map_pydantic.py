@@ -239,7 +239,7 @@ class CrossExchangeMarketMakingConfigMap(BaseTradingStrategyMakerTakerConfigMap)
             prompt_on_new=True,
         ),
     )
-    hedge_min_quantity: int = Field(
+    hedge_min_quantity: Decimal = Field(
         default = ...,
         description="Min order amount for hedging.",
         gt=0.0,

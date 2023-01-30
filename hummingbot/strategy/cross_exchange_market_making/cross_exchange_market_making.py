@@ -904,8 +904,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         _, _, quote_rate, _, _, base_rate, _, _, _ = self.get_conversion_rates(market_pair)
 
         if buy_fill_quantity > 0:
-            if buy_fill_quantity < hedge_min_quantity:
-                self.logger().warning(f"buy_fill_quantity ({buy_fill_quanity}) < hedge_min_quantity ({hedge_min_quantity}), skip")
+            if buy_fill_quantity < self.hedge_min_quantity:
+                self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
                 return
             # Maker buy
             # Taker sell
@@ -979,8 +979,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 )
 
         if sell_fill_quantity > 0:
-            if sell_fill_quantity < hedge_min_quantity:
-                self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({hedge_min_quantity}), skip")
+            if sell_fill_quantity < self.hedge_min_quantity:
+                self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
                 return
             # Maker sell
             # Taker buy
