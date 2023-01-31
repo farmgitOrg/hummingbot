@@ -112,7 +112,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self._market_pair_tracker = OrderIDMarketPairTracker()
 
         # Holds ongoing hedging orders mapped to their respective maker fill trades
-        self._ongoing_hedging = bidict()
+        # self._ongoing_hedging = bidict()
+        self._ongoing_hedging_table = {}
 
         self._logging_options = logging_options
 
@@ -501,7 +502,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         """
         Returns True if there is no outstanding unfilled order.
         """
-        if len(self._ongoing_hedging.keys()) > 0:
+        if len(self._ongoing_hedging_table.keys()) > 0:
             return False
         return True
 
@@ -681,7 +682,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             if exchange_trade_id not in self._maker_to_hedging_trades[order_id]:
                 # This maker fill has not been processed yet, submit Taker hedge order
                 # Values have to be unique in a bidict
-                self._ongoing_hedging[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
+                # self._ongoing_hedging[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
+                self._ongoing_hedging_table[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
 
                 self._maker_to_hedging_trades[order_id] += [exchange_trade_id]
 
@@ -738,30 +740,36 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     f"Taker BUY order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
                     f"{order_completed_event.quote_asset}) is filled."
                 )
-                maker_order_id = self._taker_to_maker_order_ids[order_id]
+                # maker_order_id = self._taker_to_maker_order_ids[order_id]
+                maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
                 # Remove the completed taker order
                 del self._taker_to_maker_order_ids[order_id]
-                # Get all active taker order ids for the maker order id
-                active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set(
-                    self._maker_to_taker_order_ids[maker_order_id]))
-                if len(active_taker_ids) == 0:
-                    # Was maker order fully filled?
-                    maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
-                    if maker_order_id not in maker_order_ids:
-                        # Remove the completed fully hedged maker order
-                        del self._maker_to_taker_order_ids[maker_order_id]
-                        del self._maker_to_hedging_trades[maker_order_id]
-                        del self.maker_order_id_to_order_level[maker_order_id]
+                for maker_order_id in set(maker_order_ids_linked): # remove duplicates maker orders for currently completed taker order
+                    # Get all active taker order ids for the maker order id
+                    active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set(
+                        self._maker_to_taker_order_ids[maker_order_id]))
+                    if len(active_taker_ids) == 0:
+                        # Was maker order fully filled?
+                        maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
+                        if maker_order_id not in maker_order_ids:
+                            # Remove the completed fully hedged maker order
+                            del self._maker_to_taker_order_ids[maker_order_id]
+                            del self._maker_to_hedging_trades[maker_order_id]
+                            del self.maker_order_id_to_order_level[maker_order_id]
                 try:
-                    maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
-                    del self._ongoing_hedging[maker_exchange_trade_id]
+                    # maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
+                    # del self._ongoing_hedging[maker_exchange_trade_id]
+                    for maker_exchange_trade_id in list(self._ongoing_hedging_table.keys()):
+                        taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
+                        if taker_order_id == order_id:
+                            del self._ongoing_hedging_table[maker_exchange_trade_id]
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
                 # Delete hedged maker fill event
                 fill_events = []
                 for fill_event in self._order_fill_sell_events[market_pair]:
-                    if fill_event[1].exchange_trade_id in self._ongoing_hedging.keys():
+                    if fill_event[1].exchange_trade_id in self._ongoing_hedging_table.keys():
                         fill_events += [fill_event]
                 self._order_fill_sell_events[market_pair] = fill_events
 
@@ -806,31 +814,36 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     f"Taker SELL order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
                     f"{order_completed_event.quote_asset}) is filled."
                 )
-                maker_order_id = self._taker_to_maker_order_ids[order_id]
+                # maker_order_id = self._taker_to_maker_order_ids[order_id]
+                maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
                 # Remove the completed taker order
                 del self._taker_to_maker_order_ids[order_id]
-                # Get all active taker order ids for the maker order id
-                active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set(
-                    self._maker_to_taker_order_ids[maker_order_id]))
-                if len(active_taker_ids) == 0:
-                    # Was maker order fully filled?
-                    maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
-                    if maker_order_id not in maker_order_ids:
-                        # Remove the completed fully hedged maker order
-                        del self._maker_to_taker_order_ids[maker_order_id]
-                        del self._maker_to_hedging_trades[maker_order_id]
-                        del self.maker_order_id_to_order_level[maker_order_id]
-
+                for maker_order_id in set(maker_order_ids_linked): # remove duplicates maker orders for currently completed taker order
+                    # Get all active taker order ids for the maker order id
+                    active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set(
+                        self._maker_to_taker_order_ids[maker_order_id]))
+                    if len(active_taker_ids) == 0:
+                        # Was maker order fully filled?
+                        maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
+                        if maker_order_id not in maker_order_ids:
+                            # Remove the completed fully hedged maker order
+                            del self._maker_to_taker_order_ids[maker_order_id]
+                            del self._maker_to_hedging_trades[maker_order_id]
+                            del self.maker_order_id_to_order_level[maker_order_id]
                 try:
-                    maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
-                    del self._ongoing_hedging[maker_exchange_trade_id]
+                    # maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
+                    # del self._ongoing_hedging[maker_exchange_trade_id]
+                    for maker_exchange_trade_id in list(self._ongoing_hedging_table.keys()):
+                        taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
+                        if taker_order_id == order_id:
+                            del self._ongoing_hedging_table[maker_exchange_trade_id]
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
                 # Delete hedged maker fill event
                 fill_events = []
                 for fill_event in self._order_fill_buy_events[market_pair]:
-                    if fill_event[1].exchange_trade_id in self._ongoing_hedging.keys():
+                    if fill_event[1].exchange_trade_id in self._ongoing_hedging_table.keys():
                         fill_events += [fill_event]
                 self._order_fill_buy_events[market_pair] = fill_events
 
@@ -887,11 +900,11 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         sell_fill_records = self._order_fill_sell_events.get(market_pair, [])
 
         buy_fill_records = [fill_event for fill_event in buy_fill_records
-                            if (fill_event[1].exchange_trade_id not in self._ongoing_hedging.keys() or
-                                self._ongoing_hedging[fill_event[1].exchange_trade_id] is fill_event[1].exchange_trade_id)]
+                            if (fill_event[1].exchange_trade_id not in self._ongoing_hedging_table.keys() or
+                                self._ongoing_hedging_table[fill_event[1].exchange_trade_id] is fill_event[1].exchange_trade_id)]
         sell_fill_records = [fill_event for fill_event in sell_fill_records
-                             if (fill_event[1].exchange_trade_id not in self._ongoing_hedging.keys() or
-                                 self._ongoing_hedging[fill_event[1].exchange_trade_id] is fill_event[1].exchange_trade_id)]
+                             if (fill_event[1].exchange_trade_id not in self._ongoing_hedging_table.keys() or
+                                 self._ongoing_hedging_table[fill_event[1].exchange_trade_id] is fill_event[1].exchange_trade_id)]
 
         buy_fill_quantity = sum([fill_event.amount for _, fill_event in buy_fill_records])
         sell_fill_quantity = sum([fill_event.amount for _, fill_event in sell_fill_records])
@@ -1811,12 +1824,15 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             self._maker_to_taker_order_ids[order_id] = []
             self.maker_order_id_to_order_level[order_id] = order_level;
         else:
+            if len(maker_order_ids) != len(maker_exchange_trade_ids):
+                self.log_with_clock(logging.ERROR, f"maker_order_ids: {maker_order_ids}, maker_exchange_trade_ids: {maker_exchange_trade_ids}, len not equal")
+            self._taker_to_maker_order_ids[order_id] = maker_order_ids   # 1 taker order may map to (hedge) multi maker orders ( or multi exchange_trade_id for the same maker order)
             for i in range(len(maker_order_ids)):
                 maker_order_id = maker_order_ids[i]
                 maker_exchange_trade_id = maker_exchange_trade_ids[i]
-                self._taker_to_maker_order_ids[order_id] = maker_order_id
-                self._maker_to_taker_order_ids[maker_order_id] += [order_id]
-                self._ongoing_hedging[maker_exchange_trade_id] = order_id
+                self._maker_to_taker_order_ids[maker_order_id] += [order_id]    # 1 maker order may map to multi taker orders (if the maker order is partial filled seperately)
+                # self._ongoing_hedging[maker_exchange_trade_id] = order_id
+                self._ongoing_hedging_table[maker_exchange_trade_id] = order_id
         return order_id
 
     def cancel_maker_order(self, market_pair: MakerTakerMarketPair, order_id: str):
