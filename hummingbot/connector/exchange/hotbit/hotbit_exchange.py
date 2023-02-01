@@ -526,7 +526,8 @@ class HotbitExchange(ExchangePyBase):
                         trading_pair=await self.trading_pair_associated_to_exchange_symbol(symbol=info["name"]),
                         min_order_size=Decimal(info["min_amount"]),
                         min_price_increment=Decimal(10).__pow__(Decimal(-1).__mul__(info["money_prec"])),
-                        min_base_amount_increment=Decimal(10).__pow__(Decimal(-1).__mul__(info["stock_prec"])),
+                        # min_base_amount_increment=Decimal(10).__pow__(Decimal(-1).__mul__(info["stock_prec"])),
+                        min_base_amount_increment=Decimal(info["min_amount"])
                     )
                 )
             except Exception:
