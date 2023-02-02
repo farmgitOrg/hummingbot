@@ -874,7 +874,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             if LogOption.ADJUST_ORDER in self.logging_options:
                 self.log_with_clock(
                     logging.INFO,
-                    f"({market_pair.maker.trading_pair}) The current limit {'bid' if is_buy else 'ask'} order for "
+                    f"({market_pair.maker.trading_pair}) level {order_level} The current limit {'bid' if is_buy else 'ask'} order for "
                     f"{active_order.quantity} {market_pair.maker.base_asset} at "
                     f"{order_price:.8g} {market_pair.maker.quote_asset} is now below the suggested order "
                     f"price at {suggested_price}. Going to cancel the old order and create a new one..."
@@ -1720,7 +1720,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.CREATE_ORDER in self.logging_options:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}), order_level ${order_level}, Creating limit bid order for "
+                            f"({market_pair.maker.trading_pair}) leve {order_level}, Creating limit bid order for "
                             f"{bid_size} {market_pair.maker.base_asset} at "
                             f"{bid_price} {market_pair.maker.quote_asset}. "
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
@@ -1731,7 +1731,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
                             logging.WARNING,
-                            f"({market_pair.maker.trading_pair})"
+                            f"({market_pair.maker.trading_pair}) level {order_level} "
                             f"Order book on taker is too thin to place order for size: {bid_size}"
                             f"Reduce order_size_portfolio_ratio_limit"
                         )
@@ -1739,7 +1739,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 if LogOption.NULL_ORDER_SIZE in self.logging_options:
                     self.log_with_clock(
                         logging.WARNING,
-                        f"({market_pair.maker.trading_pair}) Attempting to place a limit bid but the "
+                        f"({market_pair.maker.trading_pair}) level {order_level} Attempting to place a limit bid but the "
                         f"bid size is 0. Skipping. Check available balance."
                     )
         # if there is no active ask, place ask again
@@ -1759,7 +1759,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.CREATE_ORDER in self.logging_options:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}), order_level ${order_level}, Creating limit ask order for "
+                            f"({market_pair.maker.trading_pair}) level {order_level}, Creating limit ask order for "
                             f"{ask_size} {market_pair.maker.base_asset} at "
                             f"{ask_price} {market_pair.maker.quote_asset}. "
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
@@ -1770,7 +1770,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
                             logging.WARNING,
-                            f"({market_pair.maker.trading_pair})"
+                            f"({market_pair.maker.trading_pair}) level {order_level} "
                             f"Order book on taker is too thin to place order for size: {ask_size}"
                             f"Reduce order_size_portfolio_ratio_limit"
                         )
@@ -1778,7 +1778,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 if LogOption.NULL_ORDER_SIZE in self.logging_options:
                     self.log_with_clock(
                         logging.WARNING,
-                        f"({market_pair.maker.trading_pair}) Attempting to place a limit ask but the "
+                        f"({market_pair.maker.trading_pair}) level {order_level} Attempting to place a limit ask but the "
                         f"ask size is 0. Skipping. Check available balance."
                     )
 
@@ -1806,7 +1806,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                                                          order_type=order_type, price=price,
                                                          expiration_seconds=expiration_seconds)
             except ValueError as e:
-                self.logger().warning(f"Placing an order on market {str(market_info.market.name)} "
+                self.logger().warning(f"Placing an order level {order_level} on market {str(market_info.market.name)} "
                                       f"failed with the following error: {str(e)}")
         else:
             try:
@@ -1814,7 +1814,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                                                           order_type=order_type, price=price,
                                                           expiration_seconds=expiration_seconds)
             except ValueError as e:
-                self.logger().warning(f"Placing an order on market {str(market_info.market.name)} "
+                self.logger().warning(f"Placing an order level {order_level} on market {str(market_info.market.name)} "
                                       f"failed with the following error: {str(e)}")
         if order_id is None:
             return
