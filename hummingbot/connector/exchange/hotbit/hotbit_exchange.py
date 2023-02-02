@@ -178,8 +178,8 @@ class HotbitExchange(ExchangePyBase):
             data=api_params,
             is_auth_required=True)
         self.logger().info(f"_place_order res {order_result_all}")
-        if order_result_all["error"] is not None:
-            raise RuntimeError("_place_order fail")
+        self.check_response(order_result_all, "_place_order")
+
         order_result = order_result_all["result"]
         o_id = str(order_result["id"])
         transact_time = order_result["ctime"]
@@ -417,9 +417,7 @@ class HotbitExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.PENDING_ORDER_PATH_URL)
             self.logger().info(f"{CONSTANTS.PENDING_ORDER_PATH_URL} res {pending_order_data}")
-            if pending_order_data["error"] is not None:
-                errorMsg = pending_order_data["message"] if pending_order_data["message"] is not None else ""
-                raise RuntimeError(f"_request_order_status error {errorMsg}")
+            self.check_response(pending_order_data, "_request_order_status")
 
             pending_records = pending_order_data["result"][trading_pair]["records"] if trading_pair in pending_order_data["result"] else []
             for pending_order in pending_records:
@@ -450,9 +448,7 @@ class HotbitExchange(ExchangePyBase):
             is_auth_required=True,
             limit_id=CONSTANTS.MY_TRADES_PATH_URL)
         self.logger().info(f"{CONSTANTS.MY_TRADES_PATH_URL} res {finished_response}")
-        if finished_response["error"] is not None:
-            errorMsg = finished_response["message"] if finished_response["message"] is not None else ""
-            raise RuntimeError(f"_request_order_status error {errorMsg}")
+        self.check_response(finished_response, "_request_order_status")
 
         finished_orders = finished_response["result"]["records"] if "records" in finished_response["result"] else []
         if len(finished_orders) > 0:
@@ -485,9 +481,9 @@ class HotbitExchange(ExchangePyBase):
                 "assets": json.dumps([])
             },
             is_auth_required=True)
-        if account_info["error"] is not None:
-            errorMsg = account_info["message"] if account_info["message"] is not None else ""
-            raise RuntimeError(f"_update_balances error {errorMsg}")
+        self.logger().info(f"_update_balances res {account_info}")
+        self.check_response(account_info, "_update_balances")
+
         balances = account_info["result"]
         for asset_name in balances:
             asset = balances[asset_name]
@@ -552,3 +548,13 @@ class HotbitExchange(ExchangePyBase):
 
     def is_zero(self, num: str):
         return num is None or num == "" or Decimal(num).is_zero()
+
+    def check_response(self, res: Any, type: str):
+        if "error" in res and res["error"] is not None:
+            errorMsg = ""
+            if "message" in res["error"] and res["error"]["message"] is not None:
+                errorMsg = res["error"]["message"]
+            elif "message" in res and res["message"] is not None:
+                errorMsg = res["message"]
+            self.logger().error(f"{type} error {errorMsg}")
+            raise RuntimeError(f"{type} error {errorMsg}")
