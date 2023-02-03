@@ -544,6 +544,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         :param market_pair: cross exchange market pair
         :param active_orders: list of active maker limit orders associated with the market pair
         """
+        self.log_with_clock( logging.DEBUG, f"process_market_pair: active_orders {active_orders}, order_level {order_level}")
         has_active_bid = False
         has_active_ask = False
         need_adjust_order = False
@@ -592,13 +593,16 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         # for the same pair wouldn't happen within the time limit.
         if need_adjust_order:
             self._anti_hysteresis_timers[market_pair] = timestamp + self._config_map.anti_hysteresis_duration
+            self.logger_with_clock(logging.DEBUG, f"level {order_level}, need_adjust_order")
 
         # If there's both an active bid and ask, then there's no need to think about making new limit orders.
         if has_active_bid and has_active_ask:
+            self.logger_with_clock(logging.DEBUG, f"level {order_level}, has_active_bid true, has_active_ask true, skip")
             return
 
         # If there are pending taker orders, wait for them to complete
         if self.has_active_taker_order(market_pair):
+            self.logger_with_clock(logging.DEBUG, f"level {order_level}, has_active_taker_order() return true for level {order_level}, skip")
             return
 
         # See if it's profitable to place a limit order on maker market.
@@ -675,6 +679,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         order_id = order_filled_event.order_id
         exchange_trade_id = order_filled_event.exchange_trade_id
         if order_id in self._maker_to_taker_order_ids.keys():
+            self.log_with_clock(logging.DEBUG, f"did_fill_order: order_id {str(order_id)}")
             # Maker order filled
             # Check if this fill was already processed or not
             if order_id not in self._maker_to_hedging_trades.keys():
@@ -695,13 +700,17 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
     def did_cancel_order(self, order_canceled_event: OrderCancelledEvent):
         if order_canceled_event.order_id in self._taker_to_maker_order_ids.keys():
             self.handle_unfilled_taker_order(order_canceled_event)
+            self.log_with_clock(logging.DEBUG, f"did_cancel_order: order_id {str(order_canceled_event.order_id)}")
+
 
     def did_fail_order(self, order_failed_event: MarketOrderFailureEvent):
         if order_failed_event.order_id in self._taker_to_maker_order_ids.keys():
+            self.log_with_clock(logging.DEBUG, f"did_fail_order: order_id {str(order_failed_event.order_id)}")
             self.handle_unfilled_taker_order(order_failed_event)
 
     def did_expire_order(self, order_expired_event: OrderExpiredEvent):
         if order_expired_event.order_id in self._taker_to_maker_order_ids.keys():
+            self.log_with_clock(logging.DEBUG, f"did_expire_order: order_id {str(order_expired_event.order_id)}")
             self.handle_unfilled_taker_order(order_expired_event)
 
     def did_complete_buy_order(self, order_completed_event: BuyOrderCompletedEvent):
@@ -1701,7 +1710,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         :param has_active_bid: True if there's already an active bid on the maker side, False otherwise
         :param has_active_ask: True if there's already an active ask on the maker side, False otherwise
         """
-        self.log_with_clock( logging.INFO, f"check_and_create_new_orders: limit order for level {order_level} ")
+        self.log_with_clock( logging.DEBUG, f"check_and_create_new_orders: ({market_pair.maker.trading_pair}) limit order for level {order_level}, has_active_bid {has_active_bid}, has_active_ask {has_active_ask}")
 
         # if there is no active bid, place bid again
         if not has_active_bid:
@@ -1800,6 +1809,11 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             price = s_decimal_nan
         expiration_seconds = self._config_map.order_refresh_mode.get_expiration_seconds()
         order_id = None
+        self.log_with_clock(
+            logging.DEBUG,
+            f"place_order: {str(market_info.market.name)}: level {order_level}, {str(order_type)}, "
+            f"{'maker' if is_maker else 'taker'}, {'buy' if is_buy else 'sell'}, amount {amount}, price {price}, exp {expiration_seconds}"
+        )
         if is_buy:
             try:
                 order_id = self.buy_with_specific_market(market_info, amount,
@@ -1818,6 +1832,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                                       f"failed with the following error: {str(e)}")
         if order_id is None:
             return
+        self.log_with_clock(logging.DEBUG, f"place_order: order_id {str(order_id)}")
         self._sb_order_tracker.add_create_order_pending(order_id)
         self._market_pair_tracker.start_tracking_order_id(order_id, market_info.market, market_pair)
         if is_maker:
@@ -1836,6 +1851,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         return order_id
 
     def cancel_maker_order(self, market_pair: MakerTakerMarketPair, order_id: str):
+        self.log_with_clock(logging.DEBUG, f"cancel_maker_order: order_id {str(order_id)}")
         market_trading_pair_tuple = self._market_pair_tracker.get_market_pair_from_order_id(order_id)
         super().cancel_order(market_trading_pair_tuple.maker, order_id)
     # ----------------------------------------------------------------------------------------------------------
@@ -1858,10 +1874,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
     def did_create_buy_order(self, order_created_event):
         order_id = order_created_event.order_id
         self._sb_order_tracker.remove_create_order_pending(order_id)
+        self.log_with_clock(logging.DEBUG, f"did_create_buy_order: order_id {str(order_id)}")
+
 
     def did_create_sell_order(self, order_created_event):
         order_id = order_created_event.order_id
         self._sb_order_tracker.remove_create_order_pending(order_id)
+        self.log_with_clock(logging.DEBUG, f"did_create_sell_order: order_id {str(order_id)}")
 
     def notify_hb_app(self, msg: str):
         if self._hb_app_notification:
