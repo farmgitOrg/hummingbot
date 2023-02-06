@@ -547,12 +547,16 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         has_active_bid = False
         has_active_ask = False
         need_adjust_order = False
-        level_timer = self._anti_hysteresis_timers.get(market_pair, Null)
-        if (level_timer is not Null):
+        level_timer = self._anti_hysteresis_timers.get(market_pair, None)
+        if level_timer is not None:
+            self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer {level_timer}")
             anti_hysteresis_timer = level_timer.get(order_level, 0)
+            self.log_with_clock(logging.DEBUG, f"{order_level}: anti_hysteresis_timer {anti_hysteresis_timer}")
         else:
+            print(f"{order_level}: level_timer is None")
+            self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer is None")
             self._anti_hysteresis_timers[market_pair] = {}
-            anti_hysteresis_timer=0
+            anti_hysteresis_timer = 0
 
         global s_decimal_zero
 
@@ -597,16 +601,16 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         # for the same pair wouldn't happen within the time limit.
         if need_adjust_order:
             self._anti_hysteresis_timers[market_pair][order_level] = timestamp + self._config_map.anti_hysteresis_duration
-            self.logger_with_clock(logging.DEBUG, f"level {order_level}, need_adjust_order")
+            self.log_with_clock(logging.DEBUG, f"level {order_level}, need_adjust_order")
 
         # If there's both an active bid and ask, then there's no need to think about making new limit orders.
         if has_active_bid and has_active_ask:
-            self.logger_with_clock(logging.DEBUG, f"level {order_level}, has_active_bid true, has_active_ask true, skip")
+            self.log_with_clock(logging.DEBUG, f"level {order_level}, has_active_bid true, has_active_ask true, skip")
             return
 
         # If there are pending taker orders, wait for them to complete
         if self.has_active_taker_order(market_pair):    # FIXME: we may wait for the pending taker orders only for current order_level, instead of all levels
-            self.logger_with_clock(logging.DEBUG, f"level {order_level}, has_active_taker_order() return true for level {order_level}, skip")
+            self.log_with_clock(logging.DEBUG, f"level {order_level}, has_active_taker_order() return true for level {order_level}, skip")
             return
 
         # See if it's profitable to place a limit order on maker market.
@@ -726,6 +730,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         market_pair = self._market_pair_tracker.get_market_pair_from_order_id(order_id)
 
         if market_pair is not None:
+            self.log_with_clock(logging.DEBUG, f"did_complete_buy_order: order_id {str(order_id)}")
             if order_id in self._maker_to_taker_order_ids.keys():
                 limit_order_record = self._sb_order_tracker.get_limit_order(market_pair.maker, order_id)
                 self.log_with_clock(
@@ -799,6 +804,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         market_pair = self._market_pair_tracker.get_market_pair_from_order_id(order_id)
 
         if market_pair is not None:
+            self.log_with_clock(logging.DEBUG, f"did_complete_sell_order: order_id {str(order_id)}")
             if order_id in self._maker_to_taker_order_ids.keys():
                 limit_order_record = self._sb_order_tracker.get_limit_order(market_pair.maker, order_id)
                 self.log_with_clock(
