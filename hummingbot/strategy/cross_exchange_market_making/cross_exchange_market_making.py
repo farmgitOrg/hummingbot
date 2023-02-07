@@ -114,6 +114,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         # Holds ongoing hedging orders mapped to their respective maker fill trades
         # self._ongoing_hedging = bidict()
         self._ongoing_hedging_table = {}
+        self.hedge_buy_pending = False
+        self.hedge_sell_pending = False
 
         self._logging_options = logging_options
 
@@ -444,6 +446,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         if self.ready_for_new_trades():
             if self._main_task is None or self._main_task.done():
                 self._main_task = safe_ensure_future(self.main(timestamp))
+            else:
+                self.log_with_clock( logging.DEBUG, f"_main_task: not ready")
+        else:
+            self.log_with_clock( logging.DEBUG, f"ready_for_new_trades: false")
 
         if self._cancel_outdated_orders_task is None or self._cancel_outdated_orders_task.done():
             self._cancel_outdated_orders_task = safe_ensure_future(self.apply_gateway_transaction_cancel_interval())
@@ -502,7 +508,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         Returns True if there is no outstanding unfilled order.
         """
         if len(self._ongoing_hedging_table.keys()) > 0:
-            return False
+            if not self.hedge_buy_pending or not self.hedge_sell_pending:
+                return False
         return True
 
     async def apply_gateway_transaction_cancel_interval(self):
@@ -697,8 +704,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 # Values have to be unique in a bidict
                 # self._ongoing_hedging[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
                 self._ongoing_hedging_table[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
-
                 self._maker_to_hedging_trades[order_id] += [exchange_trade_id]
+                self.hedge_buy_pending = False
+                self.hedge_sell_pending = False
 
                 self.hedge_tasks_cleanup()
                 self._hedge_maker_order_task = safe_ensure_future(
@@ -781,6 +789,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
                         if taker_order_id == order_id:
                             del self._ongoing_hedging_table[maker_exchange_trade_id]
+                    self.hedge_sell_pending = False;
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
@@ -856,6 +865,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
                         if taker_order_id == order_id:
                             del self._ongoing_hedging_table[maker_exchange_trade_id]
+                    self.hedge_buy_pending = False;
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
@@ -938,6 +948,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         if buy_fill_quantity > 0:
             if buy_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
+                self.hedge_buy_pending = True
                 return
             # Maker buy
             # Taker sell
@@ -1013,6 +1024,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         if sell_fill_quantity > 0:
             if sell_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
+                self.hedge_sell_pending = True
                 return
             # Maker sell
             # Taker buy
@@ -1810,6 +1822,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     order_level:int,
                     maker_order_ids: [str] = None,
                     maker_exchange_trade_ids: [str] = None):
+        """
+        :param maker_order_ids/maker_exchange_trade_ids: for multi-hedging order only, corresponding to the maker order ids & maker order exchange ids current order placed are hedging. the list length should be same.
+        """
         expiration_seconds = s_float_nan
         market_info = market_pair.maker if is_maker else market_pair.taker
         # Market orders are not being submitted as taker orders, limit orders are preferred at all times
