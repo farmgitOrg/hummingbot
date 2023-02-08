@@ -138,6 +138,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self._maker_to_hedging_trades = {}
         # order_level 0 stands for the first order
         self.maker_order_id_to_order_level = {}
+        #maker order_id => expected hedging price calculated before place_order() was called
+        self.expected_hedging_prices = {}
 
         all_markets = list(self._maker_markets | self._taker_markets)
 
@@ -783,6 +785,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                             del self._maker_to_taker_order_ids[maker_order_id]
                             del self._maker_to_hedging_trades[maker_order_id]
                             del self.maker_order_id_to_order_level[maker_order_id]
+                            del self.expected_hedging_prices[maker_order_id]
                 try:
                     # maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
                     # del self._ongoing_hedging[maker_exchange_trade_id]
@@ -859,6 +862,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                             del self._maker_to_taker_order_ids[maker_order_id]
                             del self._maker_to_hedging_trades[maker_order_id]
                             del self.maker_order_id_to_order_level[maker_order_id]
+                            del self.expected_hedging_prices[maker_order_id]
                 try:
                     # maker_exchange_trade_id = self._ongoing_hedging.inverse[order_id]
                     # del self._ongoing_hedging[maker_exchange_trade_id]
@@ -971,6 +975,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
                 self.logger().error("Multiple buy maker orders fills")
                 self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
+
+            for order_id in maker_order_ids:
+                self.log_with_clock(logging.DEBUG, f"orig maker order {order_id}, expected hedge price: {self.expected_hedging_prices[order_id]}")
 
             # maker_order_id = maker_order_ids[0]
             # maker_exchange_trade_id = maker_exchange_trade_ids[0]
@@ -1758,7 +1765,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    self.place_order(market_pair, True, True, bid_size, bid_price, order_level)
+                    order_id = self.place_order(market_pair, True, True, bid_size, bid_price, order_level)
+                    if order_id is not None:
+                        self.expected_hedging_prices[order_id] = effective_hedging_price_adjusted
                 else:
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
@@ -1797,7 +1806,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                             f"Current hedging price: {effective_hedging_price:.8f} {market_pair.maker.quote_asset} "
                             f"(Rate adjusted: {effective_hedging_price_adjusted:.8f} {market_pair.taker.quote_asset})."
                         )
-                    self.place_order(market_pair, False, True, ask_size, ask_price, order_level)
+                    order_id = self.place_order(market_pair, False, True, ask_size, ask_price, order_level)
+                    if order_id is not None:
+                        self.expected_hedging_prices[order_id] = effective_hedging_price_adjusted
                 else:
                     if LogOption.NULL_ORDER_SIZE in self.logging_options:
                         self.log_with_clock(
