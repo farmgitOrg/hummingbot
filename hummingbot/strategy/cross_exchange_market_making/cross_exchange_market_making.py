@@ -743,7 +743,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 limit_order_record = self._sb_order_tracker.get_limit_order(market_pair.maker, order_id)
                 self.log_with_clock(
                     logging.INFO,
-                    f"({market_pair.maker.trading_pair}) Maker buy order {order_id} "
+                    f"({market_pair.maker.trading_pair}) Maker BUY order {order_id} "
                     f"({limit_order_record.quantity} {limit_order_record.base_currency} @ "
                     f"{limit_order_record.price} {limit_order_record.quote_currency}) has been completely filled."
                 )
@@ -759,12 +759,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             if order_id in self._taker_to_maker_order_ids.keys():
                 self.log_with_clock(
                     logging.INFO,
-                    f"({market_pair.taker.trading_pair}) Taker buy order {order_id} for "
-                    f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} has been completely filled."
+                    f"({market_pair.taker.trading_pair}) Taker BUY order {order_id} for "
+                    f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) has been completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
-                    f"Taker BUY order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
-                    f"{order_completed_event.quote_asset}) is filled."
+                    f"Taker BUY order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) is filled."
                 )
                 # maker_order_id = self._taker_to_maker_order_ids[order_id]
                 maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
@@ -818,12 +819,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 limit_order_record = self._sb_order_tracker.get_limit_order(market_pair.maker, order_id)
                 self.log_with_clock(
                     logging.INFO,
-                    f"({market_pair.maker.trading_pair}) Maker sell order {order_id} "
+                    f"({market_pair.maker.trading_pair}) Maker SELL order {order_id} "
                     f"({limit_order_record.quantity} {limit_order_record.base_currency} @ "
                     f"{limit_order_record.price} {limit_order_record.quote_currency}) has been completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
-                    f"Maker sell order ({limit_order_record.quantity} {limit_order_record.base_currency} @ "
+                    f"Maker SELL order ({limit_order_record.quantity} {limit_order_record.base_currency} @ "
                     f"{limit_order_record.price} {limit_order_record.quote_currency}) is filled."
                 )
                 # Leftover other side maker order will be left in the market until its expiration or potential fill
@@ -834,13 +835,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
             if order_id in self._taker_to_maker_order_ids.keys():
                 self.log_with_clock(
                     logging.INFO,
-                    f"({market_pair.taker.trading_pair}) Taker sell order {order_id} for "
-                    f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
-                    f"has been completely filled."
+                    f"({market_pair.taker.trading_pair}) Taker SELL order {order_id} for "
+                    f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) has been completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
-                    f"Taker SELL order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
-                    f"{order_completed_event.quote_asset}) is filled."
+                    f"Taker SELL order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) is filled."
                 )
                 # maker_order_id = self._taker_to_maker_order_ids[order_id]
                 maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
