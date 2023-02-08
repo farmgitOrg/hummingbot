@@ -114,8 +114,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         # Holds ongoing hedging orders mapped to their respective maker fill trades
         # self._ongoing_hedging = bidict()
         self._ongoing_hedging_table = {}
-        self.hedge_buy_pending = False
-        self.hedge_sell_pending = False
+        self.hedge_buy_pending = None
+        self.hedge_sell_pending = None
 
         self._logging_options = logging_options
 
@@ -510,8 +510,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         Returns True if there is no outstanding unfilled order.
         """
         if len(self._ongoing_hedging_table.keys()) > 0:
-            if not self.hedge_buy_pending or not self.hedge_sell_pending:
-                return False
+            for trade_id in self._ongoing_hedging_table.keys():
+                if trade_id in self.hedge_buy_pending or trade_id in self.hedge_sell_pending:
+                    continue
+                else:
+                    self.log_with_clock( logging.DEBUG, f"ready_for_new_trades: trade_id in hedging: {trade_id}")
+                    return False
         return True
 
     async def apply_gateway_transaction_cancel_interval(self):
@@ -558,12 +562,11 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         need_adjust_order = False
         level_timer = self._anti_hysteresis_timers.get(market_pair, None)
         if level_timer is not None:
-            self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer {level_timer}")
+            # self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer {level_timer}")
             anti_hysteresis_timer = level_timer.get(order_level, 0)
-            self.log_with_clock(logging.DEBUG, f"{order_level}: anti_hysteresis_timer {anti_hysteresis_timer}")
+            # self.log_with_clock(logging.DEBUG, f"{order_level}: anti_hysteresis_timer {anti_hysteresis_timer}")
         else:
-            print(f"{order_level}: level_timer is None")
-            self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer is None")
+            # self.log_with_clock(logging.DEBUG, f"{order_level}: level_timer is None")
             self._anti_hysteresis_timers[market_pair] = {}
             anti_hysteresis_timer = 0
 
@@ -705,10 +708,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 # This maker fill has not been processed yet, submit Taker hedge order
                 # Values have to be unique in a bidict
                 # self._ongoing_hedging[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
-                self._ongoing_hedging_table[order_filled_event.exchange_trade_id] = order_filled_event.exchange_trade_id
+                self._ongoing_hedging_table[exchange_trade_id] = exchange_trade_id
                 self._maker_to_hedging_trades[order_id] += [exchange_trade_id]
-                self.hedge_buy_pending = False
-                self.hedge_sell_pending = False
 
                 self.hedge_tasks_cleanup()
                 self._hedge_maker_order_task = safe_ensure_future(
@@ -793,7 +794,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
                         if taker_order_id == order_id:
                             del self._ongoing_hedging_table[maker_exchange_trade_id]
-                    self.hedge_sell_pending = False;
+                    self.hedge_sell_pending = None
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
@@ -870,7 +871,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         taker_order_id = self._ongoing_hedging_table[maker_exchange_trade_id]
                         if taker_order_id == order_id:
                             del self._ongoing_hedging_table[maker_exchange_trade_id]
-                    self.hedge_buy_pending = False;
+                    self.hedge_buy_pending = None   #TODO: assume only 1 hedging for buy/sell
                 except KeyError:
                     self.logger().warning(f"Ongoing hedging not found for order id {order_id}")
 
@@ -953,7 +954,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         if buy_fill_quantity > 0:
             if buy_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
-                self.hedge_buy_pending = True
+                self.hedge_buy_pending = [fill_event[1].exchange_trade_id for fill_event in buy_fill_records]
                 return
             # Maker buy
             # Taker sell
@@ -1032,7 +1033,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         if sell_fill_quantity > 0:
             if sell_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
-                self.hedge_sell_pending = True
+                self.hedge_sell_pending = [fill_event[1].exchange_trade_id for fill_event in sell_fill_records]
                 return
             # Maker sell
             # Taker buy
