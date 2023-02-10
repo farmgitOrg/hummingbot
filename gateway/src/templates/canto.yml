@@ -4,7 +4,7 @@ networks:
     chainID: 7700
     nodeURL: https://canto.gravitychain.io
     tokenListType: FILE
-    tokenListSource: src/chains/ethereum/canto_tokens.json
+    tokenListSource: src/chains/canto/canto_tokens_mainnet.json
     nativeCurrencySymbol: 'CANTO'
     gasPriceRefreshInterval: 60
 

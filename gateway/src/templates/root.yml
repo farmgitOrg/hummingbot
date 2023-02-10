@@ -112,6 +112,10 @@ configurations:
     configurationPath: pancakeswap.yml
     schemaPath: pangolin-schema.json
 
+  $namespace slingshotswap:
+    configurationPath: slingshotswap.yml
+    schemaPath: pangolin-schema.json
+  
   $namespace canto:
     configurationPath: canto.yml
     schemaPath: ethereum-schema.json

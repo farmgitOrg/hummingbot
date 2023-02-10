@@ -197,7 +197,7 @@ class AmmArbStrategy(StrategyPyBase):
         min profitability required, applies the slippage buffer, applies budget constraint, then finally execute the
         arbitrage.
         """
-        self._all_arb_proposals = await create_arb_proposals(
+        self._all_arb_proposals = await create_arb_proposals( ##@@##
             market_info_1=self._market_info_1,
             market_info_2=self._market_info_2,
             market_1_extra_flat_fees=(
@@ -212,7 +212,7 @@ class AmmArbStrategy(StrategyPyBase):
             ),
             order_amount=self._order_amount,
         )
-        profitable_arb_proposals: List[ArbProposal] = [
+        profitable_arb_proposals: List[ArbProposal] = [ ##@@### !!!!!
             t.copy() for t in self._all_arb_proposals
             if t.profit_pct(
                 rate_source=self._rate_source,
@@ -227,7 +227,7 @@ class AmmArbStrategy(StrategyPyBase):
             return
         await self.apply_slippage_buffers(profitable_arb_proposals)
         self.apply_budget_constraint(profitable_arb_proposals)
-        await self.execute_arb_proposals(profitable_arb_proposals)
+        await self.execute_arb_proposals(profitable_arb_proposals) ##@@##
 
     async def apply_gateway_transaction_cancel_interval(self):
         # XXX (martin_kou): Concurrent cancellations are not supported before the nonce architecture is fixed.
@@ -319,7 +319,7 @@ class AmmArbStrategy(StrategyPyBase):
                                     f"Placing {side} order for {arb_side.amount} {arb_side.market_info.base_asset} "
                                     f"at {arb_side.market_info.market.display_name} at {arb_side.order_price} price")
 
-                order_id: str = await self.place_arb_order(
+                order_id: str = await self.place_arb_order( ##@@##
                     arb_side.market_info,
                     arb_side.is_buy,
                     arb_side.amount,
@@ -362,7 +362,7 @@ class AmmArbStrategy(StrategyPyBase):
             market: GatewayEVMAMM = cast(GatewayEVMAMM, market_info.market)
             if GatewayPriceShim.get_instance().has_price_shim(
                     market.connector_name, market.chain, market.network, market_info.trading_pair):
-                order_price = await market.get_order_price(market_info.trading_pair, is_buy, amount, ignore_shim=True)
+                order_price = await market.get_order_price(market_info.trading_pair, is_buy, amount, ignore_shim=True)  ##@@##
                 order_price *= slippage_buffer_factor
 
         return place_order_fn(market_info, amount, market_info.market.get_taker_order_type(), order_price)

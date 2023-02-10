@@ -75,7 +75,7 @@ export async function txWriteData(
 
   let wallet: Wallet;
   try {
-    wallet = await ethereumish.getWallet(address);
+    wallet = await ethereumish.getWallet(address);//## address: wallet key file path, load from storage
   } catch (err) {
     logger.error(`Wallet ${address} not available.`);
     throw new HttpException(
@@ -98,7 +98,7 @@ export async function getTradeInfo(
 ): Promise<TradeInfo> {
   const baseToken: Tokenish = getFullTokenFromSymbol(
     ethereumish,
-    uniswapish,
+    uniswapish, //## connector
     baseAsset
   );
   const quoteToken: Tokenish = getFullTokenFromSymbol(
@@ -112,7 +112,7 @@ export async function getTradeInfo(
 
   let expectedTrade: ExpectedTrade;
   if (tradeSide === 'BUY') {
-    expectedTrade = await uniswapish.estimateBuyTrade(
+    expectedTrade = await uniswapish.estimateBuyTrade( //##@@## !!!!!! getTradeInfo called from uniswap.controllers.ts:price(), so, here call to slingshotswap.ts
       quoteToken,
       baseToken,
       requestAmount,
@@ -135,17 +135,17 @@ export async function getTradeInfo(
   };
 }
 
-export async function price(
-  ethereumish: Ethereumish,
-  uniswapish: Uniswapish,
+export async function price( //## called from amm.controllers.ts:price()
+  ethereumish: Ethereumish, //## chain
+  uniswapish: Uniswapish, //## connector !!!!!
   req: PriceRequest
 ): Promise<PriceResponse> {
   const startTimestamp: number = Date.now();
   let tradeInfo: TradeInfo;
   try {
-    tradeInfo = await getTradeInfo(
+    tradeInfo = await getTradeInfo(//##@@## 在计算 报价和执行的时候都会执行， 内部可以处理多个pair
       ethereumish,
-      uniswapish,
+      uniswapish, //## connector !!
       req.base,
       req.quote,
       new Decimal(req.amount),
@@ -212,7 +212,7 @@ export async function trade(
 
   let tradeInfo: TradeInfo;
   try {
-    tradeInfo = await getTradeInfo(
+    tradeInfo = await getTradeInfo( //##@@## ！！！？？？？
       ethereumish,
       uniswapish,
       req.base,
@@ -260,11 +260,11 @@ export async function trade(
       );
     }
 
-    const tx = await uniswapish.executeTrade(
+    const tx = await uniswapish.executeTrade( //##@@##
       wallet,
       tradeInfo.expectedTrade.trade,
       gasPrice,
-      uniswapish.router,
+      uniswapish.router, //##@@## !!!!
       uniswapish.ttl,
       uniswapish.routerAbi,
       gasLimitTransaction,

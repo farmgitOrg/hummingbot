@@ -27,6 +27,7 @@ import {
 } from '../error-handler';
 import { EthereumBase } from '../ethereum-base';
 import { Near } from '../../chains/near/near';
+import { Canto } from '../../chains/canto/canto';
 
 const walletPath = './conf/wallets';
 export async function mkdirIfDoesNotExist(path: string): Promise<void> {
@@ -69,6 +70,8 @@ export async function addWallet(
     connection = Near.getInstance(req.network);
   } else if (req.chain === 'binance-smart-chain') {
     connection = BinanceSmartChain.getInstance(req.network);
+  } else if (req.chain === 'canto') {
+    connection = Canto.getInstance(req.network);
   } else {
     throw new HttpException(
       500,

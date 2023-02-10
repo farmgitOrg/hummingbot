@@ -84,7 +84,7 @@ export namespace EVMRoutes {
   );
 
   router.post(
-    '/approve',
+    '/approve', //##@@##
     asyncHandler(
       async (
         req: Request<{}, {}, ApproveRequest>,
@@ -95,7 +95,7 @@ export namespace EVMRoutes {
           req.body.chain,
           req.body.network
         );
-        res.status(200).json(await approve(chain, req.body));
+        res.status(200).json(await approve(chain, req.body)); // ## loop all tokens in this chain and search for the same symbol
       }
     )
   );

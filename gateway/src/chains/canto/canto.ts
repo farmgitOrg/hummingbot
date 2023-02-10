@@ -73,7 +73,6 @@ export class Canto extends EthereumBase implements Ethereumish {
   }
 
   // getters
-
   public get gasPrice(): number {
     return this._gasPrice;
   }
@@ -86,13 +85,13 @@ export class Canto extends EthereumBase implements Ethereumish {
     return this._chain;
   }
 
-  getContract(tokenAddress: string, signerOrProvider?: Wallet | Provider) {
+  getContract(tokenAddress: string, signerOrProvider?: Wallet | Provider) { //##@@## called from thereum.controllers.ts: ethereumish.getContract(fullToken.address, wallet); 
     return new Contract(tokenAddress, abi.ERC20Abi, signerOrProvider);
   }
 
   getSpender(reqSpender: string): string {
     let spender: string;
-    if (reqSpender === 'slingshotswap') {
+    if (reqSpender === 'slingshotswap') { //## for the call from slingshotswap router, parse the router address from config file
       spender = SlingshotSwapConfig.config.routerAddress(this._chain);
     } else {
       spender = reqSpender;

@@ -39,7 +39,7 @@ import {
   import { SlingshotSwapConfig } from './slingshotswap.config';
   import routerAbi from './slingshotswap_router_abi.json';
   
-  export class SlingshotSwap implements Uniswapish { //## inherit from Uniswapish, used in amm.controllers, uniswap.controllers.ts
+  export class SlingshotSwap implements Uniswapish {
     private static _instances: { [name: string]: SlingshotSwap };
     private canto: Canto;
     private chainId;
@@ -169,7 +169,7 @@ import {
      * @param amount Amount of `baseToken` desired from the transaction
      * @param allowedSlippage (Optional) Fraction in string representing the allowed slippage for this transaction
      */
-    async estimateBuyTrade( //##@@## ！！！！！  client 计算报价 get_price()中会调用到, trade()中也会调用到，可以处理多跳情况
+    async estimateBuyTrade(
       quoteToken: Token,
       baseToken: Token,
       amount: BigNumber,
@@ -188,7 +188,7 @@ import {
         this.canto.provider
       );
       const trades: Trade[] = Trade.bestTradeExactOut(
-        [pair], //##@@## !!!! ???????
+        [pair],
         quoteToken,
         nativeTokenAmount,
         { maxHops: 1 }
@@ -277,13 +277,13 @@ import {
      * @param maxPriorityFeePerGas (Optional) Maximum tip per gas you want to pay
      * @param allowedSlippage (Optional) Fraction in string representing the allowed slippage for this transaction
      */
-    async executeTrade( //##@@## called from uniswap.controllers.ts
+    async executeTrade(
       wallet: Wallet,
       trade: Trade,
       gasPrice: number,
-      SlingshotSwapRouter: string, //##@@##
+      SlingshotSwapRouter: string,
       ttl: number,
-      abi: ContractInterface, //##
+      abi: ContractInterface,
       gasLimit: number,
       nonce?: number,
       maxFeePerGas?: BigNumber,
@@ -296,7 +296,7 @@ import {
         allowedSlippage: this.getAllowedSlippage(allowedSlippage),
       });
   
-      const contract: Contract = new Contract(SlingshotSwapRouter, abi, wallet); //##@@
+      const contract: Contract = new Contract(SlingshotSwapRouter, abi, wallet);
       if (nonce === undefined) {
         nonce = await this.canto.nonceManager.getNextNonce(wallet.address);
       }

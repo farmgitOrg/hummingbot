@@ -3,7 +3,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../services/error-handler';
 import {
-  price,
+  price, //## v2
   trade,
   estimatePerpGas,
   perpMarketPrices,
@@ -15,7 +15,7 @@ import {
   addLiquidity,
   reduceLiquidity,
   collectFees,
-  poolPrice,
+  poolPrice, //## v3
   estimateGas,
   perpBalance,
 } from './amm.controllers';
@@ -67,7 +67,7 @@ export namespace AmmRoutes {
   export const router = Router();
 
   router.post(
-    '/price',
+    '/price', //##@@## from gateway_evm_amm.py:get_quote_price() -> gateway_http_clent.py:get_price()
     asyncHandler(
       async (
         req: Request<{}, {}, PriceRequest>,
@@ -80,7 +80,7 @@ export namespace AmmRoutes {
   );
 
   router.post(
-    '/trade',
+    '/trade', //##@@##
     asyncHandler(
       async (
         req: Request<{}, {}, TradeRequest>,
@@ -162,7 +162,7 @@ export namespace AmmLiquidityRoutes {
   );
 
   router.post(
-    '/price',
+    '/price', //##@@## 注意 这里是 AmmLiquidityRoutes， 我们调用的是上面的 AMMRoutes
     asyncHandler(
       async (
         req: Request<{}, {}, PoolPriceRequest>,

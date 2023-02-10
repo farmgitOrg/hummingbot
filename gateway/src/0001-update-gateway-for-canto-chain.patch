@@ -1,0 +1,154 @@
+From 5bda9be6dfad3f36a1300867abd922f4ef456df9 Mon Sep 17 00:00:00 2001
+From: "yiliang.teng" <ylteng@outlook.com>
+Date: Fri, 10 Feb 2023 19:51:39 +0800
+Subject: [PATCH] update gateway for canto chain.
+
+Signed-off-by: yiliang.teng <ylteng@outlook.com>
+---
+ gateway/src/network/network.controllers.ts        |  5 +++++
+ gateway/src/services/connection-manager.ts        |  5 +++++
+ gateway/src/services/wallet/wallet.controllers.ts |  3 +++
+ gateway/src/services/wallet/wallet.validators.ts  | 11 +++++++++--
+ gateway/src/templates/root.yml                    |  4 ++++
+ 5 files changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/gateway/src/network/network.controllers.ts b/gateway/src/network/network.controllers.ts
+index 3b41377a7..f7b3c7b95 100644
+--- a/gateway/src/network/network.controllers.ts
++++ b/gateway/src/network/network.controllers.ts
+@@ -7,6 +7,7 @@ import {
+ } from './network.requests';
+ import { Avalanche } from '../chains/avalanche/avalanche';
+ import { BinanceSmartChain } from '../chains/binance-smart-chain/binance-smart-chain';
++import { Canto } from '../chains/canto/canto';
+ import { Ethereum } from '../chains/ethereum/ethereum';
+ import { Harmony } from '../chains/harmony/harmony';
+ import { Polygon } from '../chains/polygon/polygon';
+@@ -49,6 +50,8 @@ export async function getStatus(
+       connections.push(Near.getInstance(req.network as string));
+     } else if (req.chain === 'cronos') {
+       connections.push(await Cronos.getInstance(req.network as string));
++    } else if (req.chain === 'canto') {
++        connections.push(await Canto.getInstance(req.network as string));
+     } else {
+       throw new HttpException(
+         500,
+@@ -145,6 +148,8 @@ export async function getTokens(req: TokensRequest): Promise<TokensResponse> {
+       connection = Near.getInstance(req.network);
+     } else if (req.chain === 'cronos') {
+       connection = await Cronos.getInstance(req.network);
++    } else if (req.chain === 'canto') {
++        connection = await Canto.getInstance(req.network);
+     } else {
+       throw new HttpException(
+         500,
+diff --git a/gateway/src/services/connection-manager.ts b/gateway/src/services/connection-manager.ts
+index 774eef9ea..f621f63aa 100644
+--- a/gateway/src/services/connection-manager.ts
++++ b/gateway/src/services/connection-manager.ts
+@@ -2,6 +2,7 @@ import { Avalanche } from '../chains/avalanche/avalanche';
+ import { Cronos } from '../chains/cronos/cronos';
+ import { Ethereum } from '../chains/ethereum/ethereum';
+ import { BinanceSmartChain } from '../chains/binance-smart-chain/binance-smart-chain';
++import { Canto } from '../chains/canto/canto'
+ import { Harmony } from '../chains/harmony/harmony';
+ import { Solana, Solanaish } from '../chains/solana/solana';
+ import { Polygon } from '../chains/polygon/polygon';
+@@ -30,6 +31,7 @@ import { Defira } from '../connectors/defira/defira';
+ import { Serumish } from '../connectors/serum/serum';
+ import { Near } from '../chains/near/near';
+ import { Ref } from '../connectors/ref/ref';
++import { SlingshotSwap } from '../connectors/slingshotswap/slingshotswap';
+ 
+ export type ChainUnion = Ethereumish | Solanaish | Nearish;
+ 
+@@ -58,6 +60,7 @@ export async function getChain<T>(
+   else if (chain === 'binance-smart-chain')
+     chainInstance = BinanceSmartChain.getInstance(network);
+   else if (chain === 'cronos') chainInstance = Cronos.getInstance(network);
++  else if (chain === 'canto') chainInstance = Canto.getInstance(network);
+   else throw new Error('unsupported chain');
+ 
+   if (!chainInstance.ready()) {
+@@ -130,6 +133,8 @@ export async function getConnector<T>(
+     connectorInstance = PancakeSwap.getInstance(chain, network);
+   } else if (connector === 'sushiswap') {
+     connectorInstance = Sushiswap.getInstance(chain, network);
++  } else if (chain === 'canto' && connector === 'slingshotswap') {
++    connectorInstance = SlingshotSwap.getInstance(chain, network);
+   } else {
+     throw new Error('unsupported chain or connector');
+   }
+diff --git a/gateway/src/services/wallet/wallet.controllers.ts b/gateway/src/services/wallet/wallet.controllers.ts
+index fdc8be5f0..45398f4c2 100644
+--- a/gateway/src/services/wallet/wallet.controllers.ts
++++ b/gateway/src/services/wallet/wallet.controllers.ts
+@@ -28,6 +28,7 @@ import {
+ } from '../error-handler';
+ import { EthereumBase } from '../ethereum-base';
+ import { Near } from '../../chains/near/near';
++import { Canto } from '../../chains/canto/canto';
+ 
+ const walletPath = './conf/wallets';
+ export async function mkdirIfDoesNotExist(path: string): Promise<void> {
+@@ -72,6 +73,8 @@ export async function addWallet(
+     connection = Near.getInstance(req.network);
+   } else if (req.chain === 'binance-smart-chain') {
+     connection = BinanceSmartChain.getInstance(req.network);
++  } else if (req.chain === 'canto') {
++    connection = Canto.getInstance(req.network);
+   } else {
+     throw new HttpException(
+       500,
+diff --git a/gateway/src/services/wallet/wallet.validators.ts b/gateway/src/services/wallet/wallet.validators.ts
+index 95e634779..0deacbfde 100644
+--- a/gateway/src/services/wallet/wallet.validators.ts
++++ b/gateway/src/services/wallet/wallet.validators.ts
+@@ -97,11 +97,16 @@ export const validatePrivateKey: Validator = mkSelectingValidator(
+       invalidEthPrivateKeyError,
+       (val) => typeof val === 'string' && isEthPrivateKey(val)
+     ),
++    canto: mkValidator(
++        'privateKey',
++        invalidEthPrivateKeyError,
++        (val) => typeof val === 'string' && isEthPrivateKey(val)
++    ),
+   }
+ );
+ 
+ export const invalidChainError: string =
+-  'chain must be "ethereum", "solana", "avalanche", "near", "harmony", "cosmos" or "binance-smart-chain"';
++  'chain must be "ethereum", "solana", "avalanche", "near", "harmony", "cosmos" or "binance-smart-chain" or "canto"';
+ 
+ export const invalidNetworkError: string =
+   'expected a string for the network key';
+@@ -121,7 +126,9 @@ export const validateChain: Validator = mkValidator(
+       val === 'harmony' ||
+       val === 'cronos' ||
+       val === 'cosmos' ||
+-      val === 'binance-smart-chain')
++      val === 'binance-smart-chain'||
++      val === 'canto'
++      )
+ );
+ 
+ export const validateNetwork: Validator = mkValidator(
+diff --git a/gateway/src/templates/root.yml b/gateway/src/templates/root.yml
+index c6e50f30b..9ad31d634 100644
+--- a/gateway/src/templates/root.yml
++++ b/gateway/src/templates/root.yml
+@@ -116,6 +116,10 @@ configurations:
+     configurationPath: pancakeswap.yml
+     schemaPath: pangolin-schema.json
+ 
++  $namespace slingshotswap:
++    configurationPath: slingshotswap.yml
++    schemaPath: pangolin-schema.json
++  
+   $namespace canto:
+     configurationPath: canto.yml
+     schemaPath: ethereum-schema.json
+\ No newline at end of file
+-- 
+2.39.1
+
