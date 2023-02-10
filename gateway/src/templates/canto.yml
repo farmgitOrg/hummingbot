@@ -1,0 +1,12 @@
+# list the BSC networks available to gateway
+networks:
+  mainnet: 
+    chainID: 7700
+    nodeURL: https://canto.gravitychain.io
+    tokenListType: FILE
+    tokenListSource: src/chains/ethereum/canto_tokens.json
+    nativeCurrencySymbol: 'CANTO'
+    gasPriceRefreshInterval: 60
+
+manualGasPrice: 100
+gasLimitTransaction: 3000000
