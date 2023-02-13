@@ -313,3 +313,4 @@ class PositionModeChangeEvent:
 class OrderHedgingEvent:
     maker_trade_ids: List[str]
     hedging_trade_id: str
+    # hedging_order_id: str

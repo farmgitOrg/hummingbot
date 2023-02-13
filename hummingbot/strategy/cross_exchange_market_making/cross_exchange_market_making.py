@@ -23,6 +23,8 @@ from hummingbot.core.event.events import (
     OrderExpiredEvent,
     OrderFilledEvent,
     SellOrderCompletedEvent,
+    OrderHedgingEvent,
+    MarketEvent
 )
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future
@@ -782,6 +784,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Was maker order fully filled?
                         maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
                         if maker_order_id not in maker_order_ids:
+                            # notify the hedging result, save to db
+                            self.log_with_clock(
+                                logging.INFO,
+                                f"(did_complete_buy_order:trigger_event: maker_trade_ids={self._maker_to_hedging_trades[maker_order_id]}, taker_order_id={order_id}"
+                            )
+                            self.active_markets[0].trigger_event(event_tag=MarketEvent.OrderHedging, message=OrderHedgingEvent(self._maker_to_hedging_trades[maker_order_id], order_id));
                             # Remove the completed fully hedged maker order
                             del self._maker_to_taker_order_ids[maker_order_id]
                             del self._maker_to_hedging_trades[maker_order_id]
@@ -859,6 +867,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Was maker order fully filled?
                         maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
                         if maker_order_id not in maker_order_ids:
+                            # notify the hedging result, save to db
+                            self.log_with_clock(
+                                logging.INFO,
+                                f"(did_complete_sell_order:trigger_event: maker_trade_ids={self._maker_to_hedging_trades[maker_order_id]}, taker_order_id={order_id}"
+                            )
+                            self.active_markets[0].trigger_event(event_tag=MarketEvent.OrderHedging, message=OrderHedgingEvent(self._maker_to_hedging_trades[maker_order_id], order_id));
                             # Remove the completed fully hedged maker order
                             del self._maker_to_taker_order_ids[maker_order_id]
                             del self._maker_to_hedging_trades[maker_order_id]

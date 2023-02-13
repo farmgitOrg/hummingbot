@@ -72,7 +72,7 @@ class MarketsRecorder:
             market.add_exchange_order_ids_from_market_recorder({o.exchange_order_id: o.id for o in exchange_order_ids})
 
         self._create_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_create_order)
-        self._link_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_link_order)
+        self._hedge_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_hedging_order)
         self._fill_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_fill_order)
         self._cancel_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_cancel_order)
         self._fail_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_fail_order)
@@ -88,7 +88,7 @@ class MarketsRecorder:
         self._event_pairs: List[Tuple[MarketEvent, SourceInfoEventForwarder]] = [
             (MarketEvent.BuyOrderCreated, self._create_order_forwarder),
             (MarketEvent.SellOrderCreated, self._create_order_forwarder),
-            (MarketEvent.OrderHedging, self._link_order_forwarder),
+            (MarketEvent.OrderHedging, self._hedge_order_forwarder),
             (MarketEvent.OrderFilled, self._fill_order_forwarder),
             (MarketEvent.OrderCancelled, self._cancel_order_forwarder),
             (MarketEvent.OrderFailure, self._fail_order_forwarder),
