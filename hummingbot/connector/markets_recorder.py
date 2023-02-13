@@ -22,6 +22,7 @@ from hummingbot.core.event.events import (
     OrderCancelledEvent,
     OrderExpiredEvent,
     OrderFilledEvent,
+    OrderHedgingEvent,
     PositionAction,
     RangePositionClosedEvent,
     RangePositionFeeCollectedEvent,
@@ -33,6 +34,7 @@ from hummingbot.core.event.events import (
 from hummingbot.model.funding_payment import FundingPayment
 from hummingbot.model.market_state import MarketState
 from hummingbot.model.order import Order
+from hummingbot.model.order_hedging import OrderHedging
 from hummingbot.model.order_status import OrderStatus
 from hummingbot.model.range_position_collected_fees import RangePositionCollectedFees
 from hummingbot.model.range_position_update import RangePositionUpdate
@@ -70,6 +72,7 @@ class MarketsRecorder:
             market.add_exchange_order_ids_from_market_recorder({o.exchange_order_id: o.id for o in exchange_order_ids})
 
         self._create_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_create_order)
+        self._link_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_link_order)
         self._fill_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_fill_order)
         self._cancel_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_cancel_order)
         self._fail_order_forwarder: SourceInfoEventForwarder = SourceInfoEventForwarder(self._did_fail_order)
@@ -85,6 +88,7 @@ class MarketsRecorder:
         self._event_pairs: List[Tuple[MarketEvent, SourceInfoEventForwarder]] = [
             (MarketEvent.BuyOrderCreated, self._create_order_forwarder),
             (MarketEvent.SellOrderCreated, self._create_order_forwarder),
+            (MarketEvent.OrderHedging, self._link_order_forwarder),
             (MarketEvent.OrderFilled, self._fill_order_forwarder),
             (MarketEvent.OrderCancelled, self._cancel_order_forwarder),
             (MarketEvent.OrderFailure, self._fail_order_forwarder),
@@ -221,6 +225,20 @@ class MarketsRecorder:
                 session.add(order_status)
                 market.add_exchange_order_ids_from_market_recorder({evt.exchange_order_id: evt.order_id})
                 self.save_market_states(self._config_file_path, market, session=session)
+
+    def _did_hedging_order(self,
+                           event_tag: int,
+                           market: ConnectorBase,
+                           evt: OrderHedgingEvent):
+        if threading.current_thread() != threading.main_thread():
+            self._ev_loop.call_soon_threadsafe(self._did_hedging_order, event_tag, market, evt)
+            return
+
+        with self._sql_manager.get_new_session() as session:
+            with session.begin():
+                for maker_trade_id in evt.maker_trade_ids:
+                    order_hedging: OrderHedging = OrderHedging(maker_trade_id=maker_trade_id, hedging_trade_id=evt.hedging_trade_id)
+                    session.add(order_hedging)
 
     def _did_fill_order(self,
                         event_tag: int,

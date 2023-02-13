@@ -24,6 +24,7 @@ class MarketEvent(Enum):
     BuyOrderCreated = 200
     SellOrderCreated = 201
     FundingPaymentCompleted = 202
+    OrderHedging = 203
     RangePositionLiquidityAdded = 300
     RangePositionLiquidityRemoved = 301
     RangePositionUpdate = 302
@@ -306,3 +307,9 @@ class PositionModeChangeEvent:
     trading_pair: str
     position_mode: PositionMode
     message: Optional[str] = None
+
+
+@dataclass
+class OrderHedgingEvent:
+    maker_trade_ids: List[str]
+    hedging_trade_id: str
