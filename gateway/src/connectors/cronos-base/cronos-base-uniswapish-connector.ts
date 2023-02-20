@@ -186,11 +186,27 @@ export abstract class CronosBaseUniswapishConnector implements Uniswapish {
       baseToken,
       this._cronos.provider
     );
+    //{
+        const address = '0x5C7F8A570d578ED84E63fdFA7b1eE72dEae1AE23' //WCRO
+        const bridgeToken = this.getTokenByAddress(address);
+        logger.info(`bridgeToken: ${bridgeToken}`)
+
+        const pair1: Pairish = await this._sdkProvider.fetchPairData(
+            quoteToken,
+            bridgeToken,
+            this._cronos.provider
+        );
+        const pair2: Pairish = await this._sdkProvider.fetchPairData(
+            bridgeToken,
+            baseToken,
+            this._cronos.provider
+        );
+    //}
     const trades: UniswapishTrade[] = this._sdkProvider.bestTradeExactOut(
-      [pair],
+      [pair, pair1, pair2],
       quoteToken,
       nativeTokenAmount,
-      { maxHops: 1 }
+      { maxHops: 2 }
     );
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
@@ -198,7 +214,7 @@ export abstract class CronosBaseUniswapishConnector implements Uniswapish {
       );
     }
     logger.info(
-      `Best trade for ${quoteToken.address}-${baseToken.address}: ${trades[0]}`
+      `Best trade for ${quoteToken.address}-${baseToken.address}: ${JSON.stringify(trades[0], null, " ")}`
     );
 
     const expectedAmount = this._sdkProvider.maximumAmountIn(
