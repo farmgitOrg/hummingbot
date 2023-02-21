@@ -281,7 +281,7 @@ class GatewayEVMAMMLP(ConnectorBase):
                 app_warning_msg=str(e)
             )
 
-    async def auto_approve(self):
+    async def auto_approve(self):  ##@@##
         """
         Automatically approves trading pair tokens for contract(s).
         It first checks if there are any already approved amount (allowance)
@@ -290,7 +290,7 @@ class GatewayEVMAMMLP(ConnectorBase):
         for spender_token, amount in self._allowances.items():
             if amount <= s_decimal_0 and not self.is_pending_approval(spender_token):
                 spender, token = spender_token.split("_")
-                await self.approve_token(spender, token)
+                await self.approve_token(spender, token)  ##@@##
 
     async def approve_token(self, spender: str, token_symbol: str, **request_args) -> Optional[GatewayInFlightLPOrder]:
         """
@@ -1039,10 +1039,10 @@ class GatewayEVMAMMLP(ConnectorBase):
             "network_transaction_fee": self.network_transaction_fee is not None if self._trading_required else True,
         }
 
-    async def start_network(self):
+    async def start_network(self): ##@@##
         if self._trading_required:
             self._status_polling_task = safe_ensure_future(self._status_polling_loop())
-            self._auto_approve_task = safe_ensure_future(self.auto_approve())
+            self._auto_approve_task = safe_ensure_future(self.auto_approve())  ##@@##
             self._get_gas_estimate_task = safe_ensure_future(self.get_gas_estimate())
         self._get_chain_info_task = safe_ensure_future(self.get_chain_info())
 

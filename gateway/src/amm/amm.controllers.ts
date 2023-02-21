@@ -67,13 +67,13 @@ export async function price(req: PriceRequest): Promise<PriceResponse> {
 
   // we currently use the presence of routerAbi to distinguish Uniswapish from RefAMMish
   if ('routerAbi' in connector) {
-    return uniswapPrice(<Ethereumish>chain, connector, req);
+    return uniswapPrice(<Ethereumish>chain, connector, req); //## call to  '../connectors/uniswap/uniswap.controllers' price()
   } else {
     return refPrice(<Nearish>chain, connector, req);
   }
 }
 
-export async function trade(req: TradeRequest): Promise<TradeResponse> {
+export async function trade(req: TradeRequest): Promise<TradeResponse> { //##@@##
   const chain = await getChain<Ethereumish | Nearish>(req.chain, req.network);
   const connector: Uniswapish | RefAMMish = await getConnector<
     Uniswapish | RefAMMish
@@ -81,7 +81,7 @@ export async function trade(req: TradeRequest): Promise<TradeResponse> {
 
   // we currently use the presence of routerAbi to distinguish Uniswapish from RefAMMish
   if ('routerAbi' in connector) {
-    return uniswapTrade(<Ethereumish>chain, connector, req);
+    return uniswapTrade(<Ethereumish>chain, connector, req); //##@@##
   } else {
     return refTrade(<Nearish>chain, connector, req);
   }
@@ -155,11 +155,11 @@ export async function estimateGas(
   const chain = await getChain<Ethereumish | Nearish>(req.chain, req.network);
   const connector: Uniswapish | RefAMMish = await getConnector<
     Uniswapish | RefAMMish
-  >(req.chain, req.network, req.connector);
+  >(req.chain, req.network, req.connector);//## get instance via "network=canto, connector=slingshotswap" from connection-manager.ts
 
   // we currently use the presence of routerAbi to distinguish Uniswapish from RefAMMish
   if ('routerAbi' in connector) {
-    return uniswapEstimateGas(<Ethereumish>chain, connector);
+    return uniswapEstimateGas(<Ethereumish>chain, connector); //## use uniswap swap
   } else {
     return refEstimateGas(<Nearish>chain, connector);
   }

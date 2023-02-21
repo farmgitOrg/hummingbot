@@ -7,6 +7,7 @@ import {
 } from './network.requests';
 import { Avalanche } from '../chains/avalanche/avalanche';
 import { BinanceSmartChain } from '../chains/binance-smart-chain/binance-smart-chain';
+import { Canto } from '../chains/canto/canto';
 import { Ethereum } from '../chains/ethereum/ethereum';
 import { Harmony } from '../chains/harmony/harmony';
 import { Polygon } from '../chains/polygon/polygon';
@@ -49,6 +50,8 @@ export async function getStatus(
       connections.push(Near.getInstance(req.network as string));
     } else if (req.chain === 'cronos') {
       connections.push(await Cronos.getInstance(req.network as string));
+    } else if (req.chain === 'canto') {
+        connections.push(await Canto.getInstance(req.network as string));
     } else {
       throw new HttpException(
         500,
@@ -95,6 +98,11 @@ export async function getStatus(
     const bscConnections = BinanceSmartChain.getConnectedInstances();
     connections = connections.concat(
       bscConnections ? Object.values(bscConnections) : []
+    );
+
+    const cantoConnections = Canto.getConnectedInstances();
+    connections = connections.concat(
+      cantoConnections ? Object.values(cantoConnections) : []
     );
   }
 
@@ -145,6 +153,8 @@ export async function getTokens(req: TokensRequest): Promise<TokensResponse> {
       connection = Near.getInstance(req.network);
     } else if (req.chain === 'cronos') {
       connection = await Cronos.getInstance(req.network);
+    } else if (req.chain === 'canto') {
+        connection = await Canto.getInstance(req.network);
     } else {
       throw new HttpException(
         500,

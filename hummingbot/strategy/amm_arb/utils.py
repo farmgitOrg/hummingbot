@@ -31,7 +31,7 @@ async def create_arb_proposals(
     results = []
     for index in range(0, 2):
         is_buy: bool = not bool(index)  # bool(0) is False, so start with buy first
-        m_1_q_price: Optional[Decimal] = await market_info_1.market.get_quote_price(
+        m_1_q_price: Optional[Decimal] = await market_info_1.market.get_quote_price(  ##@@## !!!!! ????? quote/order price 什么区别???
             market_info_1.trading_pair, is_buy, order_amount
         )
         m_1_o_price: Optional[Decimal] = await market_info_1.market.get_order_price(

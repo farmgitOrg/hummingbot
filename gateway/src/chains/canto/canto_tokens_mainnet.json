@@ -1,0 +1,63 @@
+{
+    "name": "CoinGecko",
+    "logoURI": "https://www.coingecko.com/assets/thumbnail-007177f3eca19695592f0b8b0eabbdae282b54154e1be912285c9034ea6cbaf2.png",
+    "keywords": [
+      "defi"
+    ],
+    "timestamp": "2022-12-15T13:07:03.578+00:00",
+    "tokens": [
+      {
+        "chainId": 7700,
+        "address": "0x4e71a2e537b7f9d9413d3991d37958c0b5e1e503",
+        "name": "NOTE",
+        "symbol": "NOTE",
+        "decimals": 18,
+        "logoURI": "https://assets.coingecko.com/coins/images/26988/small/iShot_2022-08-23_09.17.46.png?1661217695"
+      },
+      {
+        "chainId": 7700,
+        "address": "0x826551890Dc65655a0Aceca109aB11AbDbD7a07B",
+        "name": "WCANTO",
+        "symbol": "WCANTO",
+        "decimals": 18,
+        "logoURI": "https://assets.coingecko.com/coins/images/26959/small/canto-network.png?1661215219"
+      },
+      {
+        "chainId": 7700,
+        "address": "0x5FD55A1B9FC24967C4dB09C513C3BA0DFa7FF687",
+        "name": "ETH",
+        "symbol": "ETH",
+        "decimals": 18,
+        "logoURI": "https://www.coingecko.com/en/coins/note"
+      },
+      {
+        "chainId": 7700,
+        "address": "0x80b5a32E4F032B2a058b4F29EC95EEfEEB87aDcd",
+        "name": "USDC",
+        "symbol": "USDC",
+        "decimals": 6,
+        "logoURI": "https://www.coingecko.com/en/coins/note"
+      },
+      {
+        "chainId": 7700,
+        "address": "0xd567B3d7B8FE3C79a1AD8dA978812cfC4Fa05e75",
+        "name": "USDT",
+        "symbol": "USDT",
+        "decimals": 6,
+        "logoURI": "https://www.coingecko.com/en/coins/note"
+      },
+      {
+        "chainId": 7700,
+        "address": "0xecEEEfCEE421D8062EF8d6b4D814efe4dc898265",
+        "name": "ATOM",
+        "symbol": "ATOM",
+        "decimals": 6,
+        "logoURI": "https://www.coingecko.com/en/coins/note"
+      }
+    ],
+    "version": {
+      "major": 1143,
+      "minor": 1,
+      "patch": 0
+    }
+  }

@@ -206,7 +206,7 @@ export async function approve(
   const { amount, nonce, address, token, maxFeePerGas, maxPriorityFeePerGas } =
     req;
 
-  const spender = ethereumish.getSpender(req.spender);
+  const spender = ethereumish.getSpender(req.spender); //## connector name, called from gateway_evm_amm.py -> evm.routes.ts
   const initTime = Date.now();
   let wallet: Wallet;
   try {
@@ -239,11 +239,11 @@ export async function approve(
     maxPriorityFeePerGasBigNumber = BigNumber.from(maxPriorityFeePerGas);
   }
   // instantiate a contract and pass in wallet, which act on behalf of that signer
-  const contract = ethereumish.getContract(fullToken.address, wallet);
+  const contract = ethereumish.getContract(fullToken.address, wallet); //##@@## to canto.ts, which stands for the chain operation
 
   // convert strings to BigNumber
   // call approve function
-  const approval = await ethereumish.approveERC20(
+  const approval = await ethereumish.approveERC20( //## implemented by the base class ethereum-base.ts of canto.ts
     contract,
     wallet,
     spender,

@@ -316,7 +316,7 @@ class GatewayEVMAMM(ConnectorBase):
             resp: Dict[str, Any] = await self._get_gateway_instance().approve_token(
                 self.chain,
                 self.network,
-                self.address,
+                self.address, ## wallet address
                 token_symbol,
                 self.connector_name,
                 **request_args
@@ -413,11 +413,11 @@ class GatewayEVMAMM(ConnectorBase):
         return None
 
     @async_ttl_cache(ttl=5, maxsize=10)
-    async def get_quote_price(
+    async def get_quote_price( ##@@##
             self,
             trading_pair: str,
             is_buy: bool,
-            amount: Decimal,
+            amount: Decimal, ##@@##
             ignore_shim: bool = False
     ) -> Optional[Decimal]:
         """
@@ -460,7 +460,7 @@ class GatewayEVMAMM(ConnectorBase):
 
         # Pull the price from gateway.
         try:
-            resp: Dict[str, Any] = await self._get_gateway_instance().get_price(
+            resp: Dict[str, Any] = await self._get_gateway_instance().get_price(  ##@@##
                 self.chain, self.network, self.connector_name, base, quote, amount, side
             )
             return self.parse_price_response(base, quote, amount, side, price_response=resp)

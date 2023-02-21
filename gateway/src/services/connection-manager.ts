@@ -2,6 +2,7 @@ import { Avalanche } from '../chains/avalanche/avalanche';
 import { Cronos } from '../chains/cronos/cronos';
 import { Ethereum } from '../chains/ethereum/ethereum';
 import { BinanceSmartChain } from '../chains/binance-smart-chain/binance-smart-chain';
+import { Canto } from '../chains/canto/canto';
 import { Harmony } from '../chains/harmony/harmony';
 import { Solana, Solanaish } from '../chains/solana/solana';
 import { Polygon } from '../chains/polygon/polygon';
@@ -30,6 +31,7 @@ import { Defira } from '../connectors/defira/defira';
 import { Serumish } from '../connectors/serum/serum';
 import { Near } from '../chains/near/near';
 import { Ref } from '../connectors/ref/ref';
+import { SlingshotSwap } from '../connectors/slingshotswap/slingshotswap';
 
 export type ChainUnion = Ethereumish | Solanaish | Nearish;
 
@@ -58,6 +60,7 @@ export async function getChain<T>(
   else if (chain === 'binance-smart-chain')
     chainInstance = BinanceSmartChain.getInstance(network);
   else if (chain === 'cronos') chainInstance = Cronos.getInstance(network);
+  else if (chain === 'canto') chainInstance = Canto.getInstance(network);
   else throw new Error('unsupported chain');
 
   if (!chainInstance.ready()) {
@@ -95,15 +98,13 @@ export async function getConnector<T>(
   let connectorInstance: ConnectorUnion;
 
   if (
-    (chain === 'ethereum' || chain === 'polygon') &&
-    connector === 'uniswap'
+    (chain === 'ethereum' || chain === 'polygon') && connector === 'uniswap'  //##@@##!!!!!
   ) {
     connectorInstance = Uniswap.getInstance(chain, network);
   } else if (chain === 'polygon' && connector === 'quickswap') {
     connectorInstance = Quickswap.getInstance(chain, network);
   } else if (
-    (chain === 'ethereum' || chain === 'polygon') &&
-    connector === 'uniswapLP'
+    (chain === 'ethereum' || chain === 'polygon') && connector === 'uniswapLP'   //##@@##!!!! use this ????
   ) {
     connectorInstance = UniswapLP.getInstance(chain, network);
   } else if (chain === 'ethereum' && connector === 'perp') {
@@ -130,6 +131,8 @@ export async function getConnector<T>(
     connectorInstance = PancakeSwap.getInstance(chain, network);
   } else if (connector === 'sushiswap') {
     connectorInstance = Sushiswap.getInstance(chain, network);
+  } else if (chain === 'canto' && connector === 'slingshotswap') {
+    connectorInstance = SlingshotSwap.getInstance(chain, network);
   } else {
     throw new Error('unsupported chain or connector');
   }
