@@ -1999,6 +1999,72 @@
           "l1GatewayAddress": "0xa3A7B6F88361F48403514059F1F16C8E78d60EeC"
         }
       },
+
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x088cd8f5ef3652623c22d48b1605dcfe860cd704",
+        "name": "Vela Token",
+        "symbol": "VELA",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x0c4681e6c0235179ec3d4f4fc4df3d14fdd96017",
+        "name": "Radiant",
+        "symbol": "RDNT",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x51318b7d00db7acc4026c88c3952b66278b6a67f",
+        "name": "Plutus",
+        "symbol": "PLS",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x3b475f6f2f41853706afc9fa6a6b8c5df1a2724c",
+        "name": "Zyber Token",
+        "symbol": "ZYB",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x3d9907f9a368ad0a51be60f7da3b97cf940982d8",
+        "name": "Camelot token",
+        "symbol": "GRAIL",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0xb348b87b23d5977e2948e6f36ca07e1ec94d7328",
+        "name": "SwapFish",
+        "symbol": "FISH",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "0x6694340fc020c5E6B96567843da2df01b2CE1eb6",
+        "name": "StargateToken",
+        "symbol": "STG",
+        "decimals": 18
+      },
+      {
+        "logoURI": "",
+        "chainId": 42161,
+        "address": "invalid",
+        "name": "",
+        "symbol": "TSUKA/ROME/SUDO",
+        "decimals": 18
+      },
+
       {
         "chainId": 1,
         "name": "0xBitcoin",
