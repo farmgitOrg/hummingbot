@@ -2017,7 +2017,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "camelot",
         "chainId": 42161,
         "address": "0x51318b7d00db7acc4026c88c3952b66278b6a67f",
         "name": "Plutus",
@@ -2025,7 +2025,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "zyberswap",
         "chainId": 42161,
         "address": "0x3b475f6f2f41853706afc9fa6a6b8c5df1a2724c",
         "name": "Zyber Token",
@@ -2033,7 +2033,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "camelot",
         "chainId": 42161,
         "address": "0x3d9907f9a368ad0a51be60f7da3b97cf940982d8",
         "name": "Camelot token",
@@ -2041,7 +2041,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "low TVL",
         "chainId": 42161,
         "address": "0xb348b87b23d5977e2948e6f36ca07e1ec94d7328",
         "name": "SwapFish",
@@ -2049,7 +2049,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "pancake BUSD/USDC",
         "chainId": 42161,
         "address": "0x6694340fc020c5E6B96567843da2df01b2CE1eb6",
         "name": "StargateToken",
@@ -2057,7 +2057,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "",
+        "logoURI": "cannot withdraw from hotbit to arbitrum",
         "chainId": 42161,
         "address": "invalid",
         "name": "",
