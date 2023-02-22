@@ -161,6 +161,35 @@ export class Sushiswap implements Uniswapish {
     return pair;
   }
 
+  getBridgeToken(
+    baseToken: Token,
+    quoteToken: Token
+  ):Token|undefined{
+
+    let address:string|undefined;
+    if (baseToken.chainId === 42161 && quoteToken.chainId === 42161){
+        if (
+            (baseToken.symbol?.toUpperCase() === "VELA" && quoteToken.symbol?.toUpperCase().startsWith("USD")) ||
+            (quoteToken.symbol?.toUpperCase() === "VELA" && baseToken.symbol?.toUpperCase().startsWith("USD"))
+        ){
+            //bridge with WETH
+            address = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+        }
+        else if (
+            (baseToken.symbol?.toUpperCase() === "RDNT" && quoteToken.symbol?.toUpperCase().startsWith("USD")) ||
+            (quoteToken.symbol?.toUpperCase() === "RDNT" && baseToken.symbol?.toUpperCase().startsWith("USD"))
+        ){
+            //bridge with WETH
+            address = "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+        }
+    }
+    if (address){
+        const bridgeToken = this.getTokenByAddress(address);
+        logger.info(`bridgeToken: ${bridgeToken}`)
+        return bridgeToken;
+    }
+    return undefined;
+  }
   /**
    * Given the amount of `baseToken` to put into a transaction, calculate the
    * amount of `quoteToken` that can be expected from the transaction.
@@ -185,16 +214,26 @@ export class Sushiswap implements Uniswapish {
     );
 
     const pair: Pair = await this.fetchData(baseToken, quoteToken);
+    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
+    let pairs: Pair[] = [pair];
+    if (bridgeToken){
+        const bridgePair1: Pair = await this.fetchData(baseToken, bridgeToken);
+        const bridgePair2: Pair = await this.fetchData(quoteToken, bridgeToken);
+        pairs.push(bridgePair1, bridgePair2)
+    }
 
     const trades: Trade<Token, Token, TradeType.EXACT_INPUT>[] =
-      Trade.bestTradeExactIn([pair], nativeTokenAmount, quoteToken, {
-        maxHops: 1,
+      Trade.bestTradeExactIn(pairs, nativeTokenAmount, quoteToken, {
+        maxHops: bridgeToken?2:1,
       });
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
         `priceSwapIn: no trade pair found for ${baseToken} to ${quoteToken}.`
       );
     }
+    logger.info(
+      `Best trade for ${baseToken.symbol}-${quoteToken.symbol}: ${trades[0].route.path.map(e=>e.symbol)}`
+    );
     logger.info(
       `Best trade for ${baseToken.address}-${quoteToken.address}: ` +
         `${trades[0].executionPrice.toFixed(6)}` +
@@ -215,16 +254,26 @@ export class Sushiswap implements Uniswapish {
       CurrencyAmount.fromRawAmount(baseToken, amount.toString());
 
     const pair: Pair = await this.fetchData(quoteToken, baseToken);
+    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
+    let pairs: Pair[] = [pair];
+    if (bridgeToken){
+        const bridgePair1: Pair = await this.fetchData(baseToken, bridgeToken);
+        const bridgePair2: Pair = await this.fetchData(quoteToken, bridgeToken);
+        pairs.push(bridgePair1, bridgePair2)
+    }
 
     const trades: Trade<Token, Token, TradeType.EXACT_OUTPUT>[] =
-      Trade.bestTradeExactOut([pair], quoteToken, nativeTokenAmount, {
-        maxHops: 1,
+      Trade.bestTradeExactOut(pairs, quoteToken, nativeTokenAmount, {
+        maxHops: bridgeToken?2:1,
       });
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
         `priceSwapOut: no trade pair found for ${quoteToken.address} to ${baseToken.address}.`
       );
     }
+    logger.info(
+        `Best trade for ${quoteToken.symbol}-${baseToken.symbol}: ${trades[0].route.path.map(e=>e.symbol)}`
+    );
     logger.info(
       `Best trade for ${quoteToken.address}-${baseToken.address}: ` +
         `${trades[0].executionPrice.invert().toFixed(6)} ` +
