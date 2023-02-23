@@ -2017,7 +2017,7 @@
         "decimals": 18
       },
       {
-        "logoURI": "camelot",
+        "logoURI": "camelot/sushi",
         "chainId": 42161,
         "address": "0x51318b7d00db7acc4026c88c3952b66278b6a67f",
         "name": "Plutus",
