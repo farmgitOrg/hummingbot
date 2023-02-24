@@ -2056,14 +2056,6 @@
         "symbol": "STG",
         "decimals": 18
       },
-      {
-        "logoURI": "cannot withdraw from hotbit to arbitrum",
-        "chainId": 42161,
-        "address": "invalid",
-        "name": "",
-        "symbol": "TSUKA/ROME/SUDO",
-        "decimals": 18
-      },
 
       {
         "chainId": 1,
