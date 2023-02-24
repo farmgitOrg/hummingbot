@@ -165,7 +165,6 @@ export class Sushiswap implements Uniswapish {
     baseToken: Token,
     quoteToken: Token
   ):Token|undefined{
-
     let address:string|undefined;
     if (baseToken.chainId === 42161 && quoteToken.chainId === 42161){
         if (
@@ -204,6 +203,20 @@ export class Sushiswap implements Uniswapish {
     }
     return undefined;
   }
+
+  async getPairs(
+    baseToken: Token,
+    quoteToken: Token
+  ):Promise<Pair[]>{
+    let pairPromises = [this.fetchData(baseToken, quoteToken)];
+    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
+    if (bridgeToken){
+        pairPromises.push(this.fetchData(baseToken, bridgeToken));
+        pairPromises.push(this.fetchData(quoteToken, bridgeToken));
+    }
+    let pairs = await Promise.all(pairPromises);
+    return pairs;
+  }
   /**
    * Given the amount of `baseToken` to put into a transaction, calculate the
    * amount of `quoteToken` that can be expected from the transaction.
@@ -222,23 +235,14 @@ export class Sushiswap implements Uniswapish {
   ): Promise<ExpectedTrade> {
     const nativeTokenAmount: CurrencyAmount<Token> =
       CurrencyAmount.fromRawAmount(baseToken, amount.toString());
-
     logger.info(
       `Fetching pair data for ${baseToken.address}-${quoteToken.address}.`
     );
-
-    const pair: Pair = await this.fetchData(baseToken, quoteToken);
-    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
-    let pairs: Pair[] = [pair];
-    if (bridgeToken){
-        const bridgePair1: Pair = await this.fetchData(baseToken, bridgeToken);
-        const bridgePair2: Pair = await this.fetchData(quoteToken, bridgeToken);
-        pairs.push(bridgePair1, bridgePair2)
-    }
+    let pairs = await this.getPairs(baseToken, quoteToken);
 
     const trades: Trade<Token, Token, TradeType.EXACT_INPUT>[] =
       Trade.bestTradeExactIn(pairs, nativeTokenAmount, quoteToken, {
-        maxHops: bridgeToken?2:1,
+        maxHops: (pairs.length>1) ? 2:1,
       });
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
@@ -266,19 +270,14 @@ export class Sushiswap implements Uniswapish {
   ): Promise<ExpectedTrade> {
     const nativeTokenAmount: CurrencyAmount<Token> =
       CurrencyAmount.fromRawAmount(baseToken, amount.toString());
-
-    const pair: Pair = await this.fetchData(quoteToken, baseToken);
-    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
-    let pairs: Pair[] = [pair];
-    if (bridgeToken){
-        const bridgePair1: Pair = await this.fetchData(baseToken, bridgeToken);
-        const bridgePair2: Pair = await this.fetchData(quoteToken, bridgeToken);
-        pairs.push(bridgePair1, bridgePair2)
-    }
+    logger.info(
+      `Fetching pair data for ${quoteToken.address}-${baseToken.address}.`
+    );
+    let pairs = await this.getPairs(quoteToken, baseToken);
 
     const trades: Trade<Token, Token, TradeType.EXACT_OUTPUT>[] =
       Trade.bestTradeExactOut(pairs, quoteToken, nativeTokenAmount, {
-        maxHops: bridgeToken?2:1,
+        maxHops: (pairs.length>1) ? 2:1,
       });
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(

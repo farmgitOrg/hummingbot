@@ -24,6 +24,7 @@ import { logger } from '../../services/logger';
 import { UniswapishPriceError } from '../../services/error-handler';
 import { isFractionString } from '../../services/validators';
 import { percentRegexp } from '../../services/config-manager-v2';
+import { BaseProvider } from '@ethersproject/providers';
 
 export abstract class CronosBaseUniswapishConnector implements Uniswapish {
   private static _instances: { [name: string]: CronosBaseUniswapishConnector };
@@ -135,6 +136,21 @@ export abstract class CronosBaseUniswapishConnector implements Uniswapish {
     return undefined;
   }
 
+  async getPairs(
+    baseToken: Tokenish,
+    quoteToken: Tokenish,
+    provider?: BaseProvider|undefined
+  ):Promise<Pairish[]>{
+    let pairPromises = [this._sdkProvider.fetchPairData(baseToken, quoteToken, provider)];
+
+    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
+    if (bridgeToken){
+        pairPromises.push(this._sdkProvider.fetchPairData(baseToken, bridgeToken, provider));
+        pairPromises.push(this._sdkProvider.fetchPairData(quoteToken, bridgeToken, provider));
+    }
+    let pairs = await Promise.all(pairPromises);
+    return pairs;
+  }
   /**
    * Given the amount of `baseToken` to put into a transaction, calculate the
    * amount of `quoteToken` that can be expected from the transaction.
@@ -157,25 +173,14 @@ export abstract class CronosBaseUniswapishConnector implements Uniswapish {
     logger.info(
       `Fetching pair data for ${baseToken.address}-${quoteToken.address}.`
     );
-    const pair: Pairish = await this._sdkProvider.fetchPairData(
-      baseToken,
-      quoteToken,
-      this._cronos.provider
-    );
 
-    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
-    let pairs: Pairish[] = [pair];
-    if (bridgeToken){
-        const bridgePair1: Pairish = await this._sdkProvider.fetchPairData(baseToken, bridgeToken, this._cronos.provider);
-        const bridgePair2: Pairish = await this._sdkProvider.fetchPairData(quoteToken, bridgeToken, this._cronos.provider);
-        pairs.push(bridgePair1, bridgePair2)
-    }
+    let pairs = await this.getPairs(baseToken, quoteToken, this._cronos.provider);
 
     const trades: UniswapishTrade[] = this._sdkProvider.bestTradeExactIn(
       pairs,
       nativeTokenAmount,
       quoteToken,
-      { maxHops: bridgeToken?2:1 }
+      { maxHops: (pairs.length>1) ? 2:1 }
     );
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
@@ -211,24 +216,14 @@ export abstract class CronosBaseUniswapishConnector implements Uniswapish {
     logger.info(
       `Fetching pair data for ${quoteToken.address}-${baseToken.address}.`
     );
-    const pair: Pairish = await this._sdkProvider.fetchPairData(
-      quoteToken,
-      baseToken,
-      this._cronos.provider
-    );
 
-    const bridgeToken = this.getBridgeToken(baseToken, quoteToken);
-    let pairs: Pairish[] = [pair];
-    if (bridgeToken){
-        const bridgePair1: Pairish = await this._sdkProvider.fetchPairData(baseToken, bridgeToken, this._cronos.provider);
-        const bridgePair2: Pairish = await this._sdkProvider.fetchPairData(quoteToken, bridgeToken, this._cronos.provider);
-        pairs.push(bridgePair1, bridgePair2)
-    }
+    let pairs = await this.getPairs(baseToken, quoteToken, this._cronos.provider);
+
     const trades: UniswapishTrade[] = this._sdkProvider.bestTradeExactOut(
       pairs,
       quoteToken,
       nativeTokenAmount,
-      { maxHops: bridgeToken?2:1 }
+      { maxHops: (pairs.length>1) ? 2:1 }
     );
     if (!trades || trades.length === 0) {
       throw new UniswapishPriceError(
