@@ -47,6 +47,14 @@ import {
   Fraction as SushiFraction,
 } from '@sushiswap/sdk';
 import {
+  Trade as SwapfishTrade,
+  Token as SwapfishToken,
+  CurrencyAmount as SwapfishCurrencyAmount,
+  TradeType as SwapfishTradeType,
+  Currency as SwapfishCurrency,
+  Fraction as SwapfishFraction,
+} from 'farm-fishswap-sdk';
+import {
   Token as TokenTraderjoe,
   CurrencyAmount as CurrencyAmountTraderjoe,
   Trade as TradeTraderjoe,
@@ -121,6 +129,7 @@ export type UniswapishTrade =
   | TradeQuickswap
   | TradeTraderjoe
   | SushiswapTrade<SushiToken, SushiToken, SushiTradeType>
+  | SwapfishTrade<SwapfishToken, SwapfishToken, SwapfishTradeType>
   | UniswapV3Trade<Currency, UniswapCoreToken, TradeType>
   | TradeUniswap
   | TradeDefikingdoms

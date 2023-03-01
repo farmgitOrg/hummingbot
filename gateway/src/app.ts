@@ -33,6 +33,7 @@ import { SushiswapConfig } from './connectors/sushiswap/sushiswap.config';
 import { DefikingdomsConfig } from './connectors/defikingdoms/defikingdoms.config';
 import { SerumConfig } from './connectors/serum/serum.config';
 import { PancakeSwapConfig } from './connectors/pancakeswap/pancakeswap.config';
+import { SwapfishConfig } from './connectors/swapfish/swapfish.config';
 import { SlingshotSwapConfig } from './connectors/slingshotswap/slingshotswap.config';
 
 import swaggerUi from 'swagger-ui-express';
@@ -97,6 +98,7 @@ gatewayApp.get(
       mad_meerkat: MadMeerkatConfig.config.availableNetworks,
       vvs: VVSConfig.config.availableNetworks,
       pancakeswap: PancakeSwapConfig.config.availableNetworks,
+      swapfish: SwapfishConfig.config.availableNetworks,
       slingshotswap: SlingshotSwapConfig.config.availableNetworks,
     });
   })

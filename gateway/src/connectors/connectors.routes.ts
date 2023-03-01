@@ -14,6 +14,7 @@ import { UniswapConfig } from './uniswap/uniswap.config';
 import { VVSConfig } from './vvs/vvs.config';
 import { RefConfig } from './ref/ref.config';
 import { PancakeSwapConfig } from './pancakeswap/pancakeswap.config';
+import { SwapfishConfig } from './swapfish/swapfish.config';
 import { SlingshotSwapConfig } from './slingshotswap/slingshotswap.config';
 
 export namespace ConnectorsRoutes {
@@ -101,6 +102,11 @@ export namespace ConnectorsRoutes {
             name: 'pancakeswap',
             trading_type: PancakeSwapConfig.config.tradingTypes,
             available_networks: PancakeSwapConfig.config.availableNetworks,
+          },
+          {
+            name: 'swapfish',
+            trading_type: SwapfishConfig.config.tradingTypes,
+            available_networks: SwapfishConfig.config.availableNetworks,
           },
           {
             name: 'slingshotswap',
