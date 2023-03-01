@@ -6812,6 +6812,17 @@ eyes@^0.1.8:
   resolved "https://registry.yarnpkg.com/eyes/-/eyes-0.1.8.tgz#62cf120234c683785d902348a800ef3e0cc20bc0"
   integrity sha512-GipyPsXO1anza0AOZdy69Im7hGFCNB7Y/NGjDlZGJ3GJJLtwNSb2vrzYrTYJRrRloVx7pl+bhUaTB8yiccPvFQ==
 
+farm-fishswap-sdk@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/farm-fishswap-sdk/-/farm-fishswap-sdk-1.0.0.tgz#c2c15abfdac4ab85a73499943b765b09eab3b95a"
+  integrity sha512-kzbyd9GL5BJEeFONO+mXrasmDYTZMuZCzaVylRy79we6nHyGrBUwFL78g7T2xVronR90NM2nfDtBp37WHlp8rg==
+  dependencies:
+    "@ethersproject/address" "^5.0.0"
+    "@ethersproject/solidity" "^5.0.0"
+    "@uniswap/sdk-core" "^3.0.0-alpha.3"
+    tiny-invariant "^1.1.0"
+    tiny-warning "^1.0.3"
+
 fast-check@3.1.1:
   version "3.1.1"
   resolved "https://registry.yarnpkg.com/fast-check/-/fast-check-3.1.1.tgz#72c5ae7022a4e86504762e773adfb8a5b0b01252"
