@@ -6,29 +6,9 @@ import { ContractInterface } from '@ethersproject/contracts';
 
 import { Token, CurrencyAmount, Percent, TradeType } from '@uniswap/sdk-core';
 
-import {
-  Pair,
-  Router,
-  SwapParameters,
-  //   TokenAmount,
-  Trade,
-  //   Fetcher,
-  //   Percent,
-  //   Pair,
-} from 'farm-fishswap-sdk';
+import { Pair, Router, SwapParameters, Trade } from 'farm-fishswap-sdk';
 
 import IUniswapV2Pair from '@uniswap/v2-core/build/IUniswapV2Pair.json';
-
-// import { AlphaRouter } from '@uniswap/smart-order-router'; // may diff
-// import { Trade, SwapRouter } from '@uniswap/router-sdk';
-// import { MethodParameters } from '@uniswap/v3-sdk'; //same with uni, but INIT_CODE_HASH was defind in v2-sdk ???
-// import {
-//   Token,
-//   CurrencyAmount,
-//   Percent,
-//   TradeType,
-//   Currency,
-// } from '@uniswap/sdk-core';
 
 import { Ethereum } from '../../chains/ethereum/ethereum';
 import { BinanceSmartChain } from '../../chains/binance-smart-chain/binance-smart-chain';

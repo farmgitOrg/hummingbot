@@ -16,6 +16,8 @@ import { Serum } from '../connectors/serum/serum';
 import { Uniswap } from '../connectors/uniswap/uniswap';
 import { UniswapLP } from '../connectors/uniswap/uniswap.lp';
 import { VVSConnector } from '../connectors/vvs/vvs';
+import { Swapfish } from '../connectors/swapfish/swapfish';
+
 import {
   Ethereumish,
   Nearish,
@@ -131,6 +133,8 @@ export async function getConnector<T>(
     connectorInstance = PancakeSwap.getInstance(chain, network);
   } else if (connector === 'sushiswap') {
     connectorInstance = Sushiswap.getInstance(chain, network);
+  } else if (connector === 'swapfish') {
+    connectorInstance = Swapfish.getInstance(chain, network);
   } else if (chain === 'canto' && connector === 'slingshotswap') {
     connectorInstance = SlingshotSwap.getInstance(chain, network);
   } else {

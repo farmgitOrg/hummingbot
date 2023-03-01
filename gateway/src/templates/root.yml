@@ -112,6 +112,10 @@ configurations:
     configurationPath: pancakeswap.yml
     schemaPath: pangolin-schema.json
 
+  $namespace swapfish:
+    configurationPath: swapfish.yml
+    schemaPath: swapfish-schema.json
+
   $namespace slingshotswap:
     configurationPath: slingshotswap.yml
     schemaPath: pangolin-schema.json
