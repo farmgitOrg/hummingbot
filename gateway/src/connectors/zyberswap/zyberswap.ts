@@ -192,6 +192,14 @@ export class Zyberswap implements Uniswapish {
       ) {
         //bridge with WETH
         address = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1';
+      } else if (
+        (baseToken.symbol?.toUpperCase() === 'ZYB' &&
+          quoteToken.symbol?.toUpperCase().startsWith('USD')) ||
+        (quoteToken.symbol?.toUpperCase() === 'ZYB' &&
+          baseToken.symbol?.toUpperCase().startsWith('USD'))
+      ) {
+        //bridge with WETH
+        address = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1';
       }
     }
     if (address) {
