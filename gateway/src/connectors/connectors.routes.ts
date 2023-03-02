@@ -15,6 +15,7 @@ import { VVSConfig } from './vvs/vvs.config';
 import { RefConfig } from './ref/ref.config';
 import { PancakeSwapConfig } from './pancakeswap/pancakeswap.config';
 import { SwapfishConfig } from './swapfish/swapfish.config';
+import { ZyberswapConfig } from './zyberswap/zyberswap.config';
 import { SlingshotSwapConfig } from './slingshotswap/slingshotswap.config';
 
 export namespace ConnectorsRoutes {
@@ -107,6 +108,11 @@ export namespace ConnectorsRoutes {
             name: 'swapfish',
             trading_type: SwapfishConfig.config.tradingTypes,
             available_networks: SwapfishConfig.config.availableNetworks,
+          },
+          {
+            name: 'zyberswap',
+            trading_type: ZyberswapConfig.config.tradingTypes,
+            available_networks: ZyberswapConfig.config.availableNetworks,
           },
           {
             name: 'slingshotswap',

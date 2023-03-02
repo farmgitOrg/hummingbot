@@ -17,6 +17,7 @@ import { Uniswap } from '../connectors/uniswap/uniswap';
 import { UniswapLP } from '../connectors/uniswap/uniswap.lp';
 import { VVSConnector } from '../connectors/vvs/vvs';
 import { Swapfish } from '../connectors/swapfish/swapfish';
+import { Zyberswap } from '../connectors/zyberswap/zyberswap';
 
 import {
   Ethereumish,
@@ -135,6 +136,8 @@ export async function getConnector<T>(
     connectorInstance = Sushiswap.getInstance(chain, network);
   } else if (connector === 'swapfish') {
     connectorInstance = Swapfish.getInstance(chain, network);
+  } else if (connector === 'zyberswap') {
+    connectorInstance = Zyberswap.getInstance(chain, network);
   } else if (chain === 'canto' && connector === 'slingshotswap') {
     connectorInstance = SlingshotSwap.getInstance(chain, network);
   } else {

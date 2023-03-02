@@ -116,6 +116,10 @@ configurations:
     configurationPath: swapfish.yml
     schemaPath: swapfish-schema.json
 
+  $namespace zyberswap:
+    configurationPath: zyberswap.yml
+    schemaPath: zyberswap-schema.json
+
   $namespace slingshotswap:
     configurationPath: slingshotswap.yml
     schemaPath: pangolin-schema.json

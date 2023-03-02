@@ -10,6 +10,7 @@ import { Perp } from '../../connectors/perp/perp';
 import { Ethereumish } from '../../services/common-interfaces';
 import { SushiswapConfig } from '../../connectors/sushiswap/sushiswap.config';
 import { SwapfishConfig } from '../../connectors/swapfish/swapfish.config';
+import { ZyberswapConfig } from '../../connectors/zyberswap/zyberswap.config';
 import { ConfigManagerV2 } from '../../services/config-manager-v2';
 
 // MKR does not match the ERC20 perfectly so we need to use a separate ABI.
@@ -185,6 +186,11 @@ export class Ethereum extends EthereumBase implements Ethereumish {
       );
     } else if (reqSpender === 'swapfish') {
       spender = SwapfishConfig.config.swapfishRouterAddress(
+        this.chainName,
+        this._chain
+      );
+    } else if (reqSpender === 'zyberswap') {
+      spender = ZyberswapConfig.config.zyberswapRouterAddress(
         this.chainName,
         this._chain
       );

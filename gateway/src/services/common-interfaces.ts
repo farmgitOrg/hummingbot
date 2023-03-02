@@ -53,6 +53,13 @@ import {
   Currency as SwapfishCurrency,
   TradeType as SwapfishTradeType,
 } from '@uniswap/sdk-core';
+import { Trade as ZyberswapTrade } from 'farm-zyberswap-sdk';
+import {
+  Token as ZyberswapToken,
+  CurrencyAmount as ZyberswapCurrencyAmount,
+  Currency as ZyberswapCurrency,
+  TradeType as ZyberswapTradeType,
+} from '@uniswap/sdk-core';
 import {
   Token as TokenTraderjoe,
   CurrencyAmount as CurrencyAmountTraderjoe,
@@ -129,6 +136,7 @@ export type UniswapishTrade =
   | TradeTraderjoe
   | SushiswapTrade<SushiToken, SushiToken, SushiTradeType>
   | SwapfishTrade<SwapfishToken, SwapfishToken, SwapfishTradeType>
+  | ZyberswapTrade<ZyberswapToken, ZyberswapToken, ZyberswapTradeType>
   | UniswapV3Trade<Currency, UniswapCoreToken, TradeType>
   | TradeUniswap
   | TradeDefikingdoms
@@ -153,6 +161,7 @@ export type UniswapishAmount =
   | CurrencyAmountTraderjoe
   | SushiCurrencyAmount<SushiCurrency | SushiToken>
   | SwapfishCurrencyAmount<SwapfishCurrency>
+  | ZyberswapCurrencyAmount<ZyberswapCurrency>
   | CurrencyAmountDefikingdoms
   | PancakeSwapCurrencyAmount
   | CurrencyAmountMMF
