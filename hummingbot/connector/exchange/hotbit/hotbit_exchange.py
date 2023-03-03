@@ -101,7 +101,7 @@ class HotbitExchange(ExchangePyBase):
 
     @property
     def check_network_request_path(self):
-        return CONSTANTS.PING_PATH_URL
+        return CONSTANTS.CHECK_NETWORK_PATH_URL
 
     @property
     def trading_pairs(self):
@@ -161,7 +161,7 @@ class HotbitExchange(ExchangePyBase):
                            order_type: OrderType,
                            price: Decimal,
                            **kwargs) -> Tuple[str, float]:
-        self.logger().info(f"_place_order {order_id}")
+        self.logger().debug(f"_place_order order_id:{order_id}")
         order_result = None
         amount_str = f"{amount:f}"
         price_str = f"{price:f}"
@@ -177,7 +177,7 @@ class HotbitExchange(ExchangePyBase):
             path_url=CONSTANTS.ORDER_LIMIT_PATH_URL,
             data=api_params,
             is_auth_required=True)
-        self.logger().info(f"_place_order res {order_result_all}")
+        self.logger().debug(f"_place_order order_id:{order_id} res {order_result_all}")
         self.check_response(order_result_all, "_place_order")
 
         order_result = order_result_all["result"]
@@ -186,7 +186,12 @@ class HotbitExchange(ExchangePyBase):
         return (o_id, transact_time)
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder):
-        self.logger().info(f"_place_cancel {order_id}")
+        self.logger().debug(f"_place_cancel order_id:{order_id} exchange_order_id:{tracked_order.exchange_order_id}")
+        if tracked_order.exchange_order_id is None:
+            await self._sleep(1)
+            tracked_order = self._order_tracker.fetch_tracked_order(order_id)
+            if tracked_order is None or tracked_order.exchange_order_id is None:
+                raise asyncio.TimeoutError
         symbol = await self.exchange_symbol_associated_to_pair(trading_pair=tracked_order.trading_pair)
         api_params = {
             "market": symbol,
@@ -196,7 +201,7 @@ class HotbitExchange(ExchangePyBase):
             path_url=CONSTANTS.ORDER_CANCEL_PATH_URL,
             data=api_params,
             is_auth_required=True)
-        self.logger().info(f"_place_cancel res {cancel_result}")
+        self.logger().debug(f"_place_cancel res {cancel_result}")
         if cancel_result["error"] is None:
             return True
         return False
@@ -208,10 +213,17 @@ class HotbitExchange(ExchangePyBase):
         pass
 
     async def _user_stream_event_listener(self):
+        """
+        order.update status code:
+            1: new order or (new order and filled immediately)
+            2: order partially filled, but not include complete filled
+            3: order complete filled or canceled (canceled if [deal_stock] is zero)
+            deal_stock is cumulative value
+        """
         async for stream_message in self._iter_user_event_queue():
             try:
                 channel = stream_message.get("method")
-                self.logger().info(f"_user_stream_event_listener {stream_message}")
+                self.logger().debug(f"_user_stream_event_listener {stream_message}")
                 if channel == CONSTANTS.ORDER_EVENT_TYPE:
                     order_type = stream_message.get("params")[0]
                     data = stream_message.get("params")[1]
@@ -239,8 +251,6 @@ class HotbitExchange(ExchangePyBase):
                         else:
                             order_state = OrderState.CANCELED
 
-                    self.logger().info(f"has_fill {has_fill}")
-                    self.logger().info(f"order_state {order_state}")
                     if fillable_order is not None and has_fill:
                         trade_update = self.create_trade_update(fillable_order, data)
                         if trade_update is not None:
@@ -285,7 +295,6 @@ class HotbitExchange(ExchangePyBase):
         order_fills = fillable_order.order_fills
         executed_fee = Decimal(0)
         for order_fill in order_fills.values():
-            self.logger().info(f"create_trade_update order_fill {order_fill.to_json()}")
             for flat_fee in order_fill.fee.flat_fees:
                 executed_fee += flat_fee.amount
 
@@ -300,11 +309,13 @@ class HotbitExchange(ExchangePyBase):
 
         current_deal_stock = Decimal(update_data["deal_stock"]) - fillable_order.executed_amount_base
         current_deal_money = Decimal(update_data["deal_money"]) - fillable_order.executed_amount_quote
-        self.logger().info(f"create_trade_update fill {current_deal_stock} {current_deal_money} {current_fee}")
+        trade_id = str(fillable_order.exchange_order_id) + "_" + str(len(fillable_order.order_fills.values()) + 1)
+        self.logger().info(f"create_trade_update fill order_id:{fillable_order.client_order_id}, trade_id:{trade_id}, \
+            current_deal_stock:{current_deal_stock}, current_deal_stock:{current_deal_money}, current_fee:{current_fee}")
         if current_deal_stock.is_zero():
             return None
         return TradeUpdate(
-            trade_id=str(fillable_order.exchange_order_id) + "_" + str(len(fillable_order.order_fills.values()) + 1),
+            trade_id=trade_id,
             client_order_id=fillable_order.client_order_id,
             exchange_order_id=fillable_order.exchange_order_id,
             trading_pair=fillable_order.trading_pair,
@@ -316,89 +327,21 @@ class HotbitExchange(ExchangePyBase):
         )
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
-        self.logger().info("_all_trade_updates_for_order")
+        """
+        There are some problems with the interface of hotbot about fetching order detail.
+        pass
+        """
+        self.logger().debug("_all_trade_updates_for_order")
         trade_updates = []
-
-        # if order.exchange_order_id is not None:
-        #     exchange_order_id = str(order.exchange_order_id)
-        #     trading_pair = await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair)
-        #     """
-        #     all_fills_response = await self._api_post(
-        #         path_url=CONSTANTS.MY_TRADES_PATH_URL,
-        #         data={
-        #             "offset": "0",
-        #             "order_id": exchange_order_id
-        #         },
-        #         is_auth_required=True,
-        #         limit_id=CONSTANTS.MY_TRADES_PATH_URL)
-
-        #     if all_fills_response["error"] is not None:
-        #         errorMsg = all_fills_response["message"] if all_fills_response["message"] is not None else ""
-        #         raise RuntimeError(f"_all_trade_updates_for_order error {errorMsg}")
-        #     all_fills = all_fills_response["result"]
-        #     """
-        #     finished_orders = {}
-        #     finished_offset = 0
-        #     finished_limit = 100
-        #     while True:
-        #         params = {
-        #                 "market": await self.exchange_symbol_associated_to_pair(trading_pair=order.trading_pair),
-        #                 "start_time": str(int(order.creation_timestamp) - 10),
-        #                 "end_time": str(min(int(order.creation_timestamp) + 10, time.time())),
-        #                 "offset": str(finished_offset),
-        #                 "limit": str(finished_limit),
-        #                 "side": str(CONSTANTS.SIDE_BUY if order.trade_type is TradeType.BUY else CONSTANTS.SIDE_SELL)}
-        #         print(params)
-        #         finished_order_data = await self._api_post(
-        #             path_url=CONSTANTS.FINISHED_ORDER_PATH_URL,
-        #             data=params,
-        #             is_auth_required=True)
-        #         print(finished_order_data)
-        #         if finished_order_data["error"] is not None:
-        #             errorMsg = finished_order_data["message"] if finished_order_data["message"] is not None else ""
-        #             raise RuntimeError(f"_request_order_status error {errorMsg}")
-        #         for finished_order in finished_order_data["result"]["records"]:
-        #             finished_orders[finished_order["id"]] = finished_order
-        #         if len(finished_order_data["result"]) < finished_limit:
-        #             break
-
-        #     # TODO 接口返回的不是fill order
-        #     order = finished_orders[order.exchange_order_id]
-        #     if order is None:
-        #         return trade_updates
-        #     exchange_order_id = str(order["id"])
-        #     base, quote = split_hb_trading_pair(trading_pair)
-        #     fee = TradeFeeBase.new_spot_fee(
-        #         fee_schema=self.trade_fee_schema(),
-        #         trade_type=order.trade_type,
-        #         percent_token=order["fee_stock"] if order["fee_stock"] is not None and order["fee_stock"] != "" else quote,
-        #         flat_fees=[TokenAmount(amount=Decimal(order["deal_fee"]), token=order["fee_stock"])]
-        #     )
-        #     trade_update = TradeUpdate(
-        #         trade_id=str(order["id"]),
-        #         client_order_id=order.client_order_id,
-        #         exchange_order_id=exchange_order_id,
-        #         trading_pair=trading_pair,
-        #         fee=fee,
-        #         fill_base_amount=Decimal(order["deal_stock"]),
-        #         fill_quote_amount=Decimal(order["deal_money"]),
-        #         fill_price=Decimal(order["price"]),
-        #         fill_timestamp=order["ctime"],
-        #     )
-        #     trade_updates.append(trade_update)
-
         return trade_updates
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
-        self.logger().info(f"_request_order_status client_order_id:{tracked_order.client_order_id} exchange_order_id:{tracked_order.exchange_order_id}")
+        self.logger().debug(f"_request_order_status client_order_id:{tracked_order.client_order_id} exchange_order_id:{tracked_order.exchange_order_id}")
         if not tracked_order.exchange_order_id:
-            return OrderUpdate(
-                client_order_id=tracked_order.client_order_id,
-                exchange_order_id=tracked_order.exchange_order_id,
-                trading_pair=tracked_order.trading_pair,
-                update_timestamp=time.time(),
-                new_state=tracked_order.current_state,
-            )
+            await self._sleep(1)
+            tracked_order = self._order_tracker.fetch_tracked_order(tracked_order.client_order_id)
+            if tracked_order is None or tracked_order.exchange_order_id is None:
+                raise asyncio.TimeoutError
 
         """ pending state: OPEN / PARTIALLY_FILLED, PARTIALLY_FILLED if data["deal_stock"] is not zero """
         pending_orders = {}
@@ -410,13 +353,12 @@ class HotbitExchange(ExchangePyBase):
                 "market": trading_pair,
                 "offset": str(pending_offset),
                 "limit": str(pending_limit)}
-            self.logger().info(f"{CONSTANTS.PENDING_ORDER_PATH_URL} {params}")
             pending_order_data = await self._api_post(
                 path_url=CONSTANTS.PENDING_ORDER_PATH_URL,
                 data=params,
                 is_auth_required=True,
                 limit_id=CONSTANTS.PENDING_ORDER_PATH_URL)
-            self.logger().info(f"{CONSTANTS.PENDING_ORDER_PATH_URL} res {pending_order_data}")
+            self.logger().debug(f"_request_order_status {CONSTANTS.PENDING_ORDER_PATH_URL} res {pending_order_data}")
             self.check_response(pending_order_data, "_request_order_status")
 
             pending_records = pending_order_data["result"][trading_pair]["records"] if trading_pair in pending_order_data["result"] else []
@@ -441,13 +383,12 @@ class HotbitExchange(ExchangePyBase):
         params = {
             "offset": "0",
             "order_id": tracked_order.exchange_order_id}
-        self.logger().info(f"{CONSTANTS.MY_TRADES_PATH_URL} {params}")
         finished_response = await self._api_post(
             path_url=CONSTANTS.MY_TRADES_PATH_URL,
             data=params,
             is_auth_required=True,
             limit_id=CONSTANTS.MY_TRADES_PATH_URL)
-        self.logger().info(f"{CONSTANTS.MY_TRADES_PATH_URL} res {finished_response}")
+        self.logger().debug(f"_request_order_status {CONSTANTS.MY_TRADES_PATH_URL} res {finished_response}")
         self.check_response(finished_response, "_request_order_status")
 
         finished_orders = finished_response["result"]["records"] if "records" in finished_response["result"] else []
@@ -481,7 +422,7 @@ class HotbitExchange(ExchangePyBase):
                 "assets": json.dumps([])
             },
             is_auth_required=True)
-        self.logger().info(f"_update_balances res {account_info}")
+        self.logger().debug(f"_update_balances res {account_info}")
         self.check_response(account_info, "_update_balances")
 
         balances = account_info["result"]

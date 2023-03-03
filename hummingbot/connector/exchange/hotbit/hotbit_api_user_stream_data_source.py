@@ -82,7 +82,7 @@ class HotbitAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 symbols.add(quote)
             asset_payload = {
                 "method": "asset.subscribe",
-                "params": list(symbols),
+                "params": sorted(list(symbols)),
                 "id": 1
             }
             subscribe_asset_request: WSJSONRequest = WSJSONRequest(payload=asset_payload)
@@ -97,8 +97,3 @@ class HotbitAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 exc_info=True
             )
             raise
-
-    async def _get_ws_assistant(self) -> WSAssistant:
-        if self._ws_assistant is None:
-            self._ws_assistant = await self._api_factory.get_ws_assistant()
-        return self._ws_assistant

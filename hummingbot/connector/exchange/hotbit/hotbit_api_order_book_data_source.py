@@ -24,18 +24,18 @@ class HotbitAPIOrderBookDataSource(OrderBookTrackerDataSource):
                  trading_pairs: List[str],
                  connector: 'HotbitExchange',
                  api_factory: WebAssistantsFactory
-                 #  domain: str = CONSTANTS.DEFAULT_DOMAIN
                  ):
         super().__init__(trading_pairs)
         self._connector = connector
         self._api_factory = api_factory
+        self._trade_messages_queue_key = CONSTANTS.TRADE_EVENT_TYPE
+        self._diff_messages_queue_key = CONSTANTS.DIFF_EVENT_TYPE
         self._trading_pairs: List[str] = trading_pairs
 
         self._message_queue: Dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
 
     async def get_last_traded_prices(self,
-                                     trading_pairs: List[str],
-                                     domain: Optional[str] = None) -> Dict[str, float]:
+                                     trading_pairs: List[str]) -> Dict[str, float]:
         return await self._connector.get_last_traded_prices(trading_pairs=trading_pairs)
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:

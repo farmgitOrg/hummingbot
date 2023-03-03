@@ -18,7 +18,7 @@ class OrderHedging(HummingbotBase):
     hedging_trade_id = Column(Text, nullable=False)
 
     def __repr__(self) -> str:
-        return f"Order(id={self.id}, " \
+        return f"OrderHedging(id={self.id}, " \
                f"maker_trade_id={self.maker_trade_id}, hedging_trade_id={self.hedging_trade_id}"
 
     @staticmethod

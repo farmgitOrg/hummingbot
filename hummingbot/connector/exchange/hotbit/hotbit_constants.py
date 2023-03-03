@@ -14,7 +14,7 @@ WSS_URL = "wss://ws.hotbit.io/v2/"
 # # Public API endpoints or HotbitClient function
 TICKER_PRICE_CHANGE_PATH_URL = "/market.status"
 EXCHANGE_INFO_PATH_URL = "/market.list"
-PING_PATH_URL = "/ping"
+CHECK_NETWORK_PATH_URL = "/market.last?market=ETH/BTC"
 SNAPSHOT_PATH_URL = "/order.depth"
 
 # # Private API endpoints or HotbitClient function
@@ -47,9 +47,12 @@ ORDER_STATE = {
     ORDER_STATE_FINISHED: OrderState.FILLED,
 }
 
+
+FINISHED_STATE_FILLED = 0
+FINISHED_STATE_CANCELED = 8
 FINISHED_STATE = {
-    0: OrderState.FILLED,
-    8: OrderState.CANCELED,
+    FINISHED_STATE_FILLED: OrderState.FILLED,
+    FINISHED_STATE_CANCELED: OrderState.CANCELED,
 }
 
 # # Websocket event types
@@ -61,7 +64,7 @@ ASSET_EVENT_TYPE = "asset.update"
 RATE_LIMITS = [
     RateLimit(limit_id=TICKER_PRICE_CHANGE_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=EXCHANGE_INFO_PATH_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=PING_PATH_URL, limit=10, time_interval=1),
+    RateLimit(limit_id=CHECK_NETWORK_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=SNAPSHOT_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=ACCOUNTS_PATH_URL, limit=10, time_interval=1),
     RateLimit(limit_id=MY_TRADES_PATH_URL, limit=10, time_interval=1),
