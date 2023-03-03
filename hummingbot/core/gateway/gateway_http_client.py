@@ -313,7 +313,7 @@ class GatewayHttpClient:
             req_data["network"] = network
         return await self.api_request("get", "network/status", req_data, fail_silently=fail_silently)
 
-    async def approve_token( ##@@##
+    async def approve_token(
             self,
             chain: str,
             network: str,
@@ -329,7 +329,7 @@ class GatewayHttpClient:
             "network": network,
             "address": address,
             "token": token, ## token symbol
-            "spender": spender  ##@@## connector name, called from gateway_evm_amm.py
+            "spender": spender
         }
         if nonce is not None:
             request_payload["nonce"] = nonce
@@ -360,7 +360,7 @@ class GatewayHttpClient:
             "spender": spender
         }, fail_silently=fail_silently)
 
-    async def get_price( ##@@##  called from gateway_evm_amm.py:get_quote_price()
+    async def get_price(
             self,
             chain: str,
             network: str,

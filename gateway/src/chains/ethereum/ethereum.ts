@@ -159,6 +159,9 @@ export class Ethereum extends EthereumBase implements Ethereumish {
         await this.provider.send('eth_maxPriorityFeePerGas', [])
       );
     }
+    logger.info(
+      `getGasPriceFromEthereumNode: baseFee: ${baseFee.toString()}, priorityFee: ${priorityFee.toString()}`
+    );
     return baseFee.add(priorityFee).toNumber() * 1e-9;
   }
 

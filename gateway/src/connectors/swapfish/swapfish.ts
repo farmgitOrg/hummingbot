@@ -34,6 +34,7 @@ export class Swapfish implements Uniswapish {
   private chainId;
   private tokenList: Record<string, Token> = {};
   private _ready: boolean = false;
+  private _gasMultiplier: number = 1;
 
   private constructor(chain: string, network: string) {
     const config = SwapfishConfig.config;
@@ -46,6 +47,7 @@ export class Swapfish implements Uniswapish {
     }
     this.chainId = this.chain.chainId;
     this._ttl = config.ttl;
+    this._gasMultiplier = Number(config.gasMultiplier);
     this._routerAbi = routerAbi.abi;
     this._gasLimitEstimate = config.gasLimitEstimate;
     this._router = config.swapfishRouterAddress(chain, network);
@@ -346,7 +348,7 @@ export class Swapfish implements Uniswapish {
           });
         } else {
           tx = await contract[result.methodName](...result.args, {
-            gasPrice: (gasPrice * 1e9).toFixed(0),
+            gasPrice: (gasPrice * this._gasMultiplier * 1e9).toFixed(0),
             gasLimit: gasLimit.toFixed(0),
             value: result.value,
             nonce: nextNonce,

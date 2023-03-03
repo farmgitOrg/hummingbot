@@ -6,6 +6,7 @@ export namespace ZyberswapConfig {
     allowedSlippage: string;
     gasLimitEstimate: number;
     ttl: number;
+    gasMultiplier: string;
     zyberswapRouterAddress: (chain: string, network: string) => string;
     tradingTypes: Array<string>;
     availableNetworks: Array<AvailableNetworks>;
@@ -19,6 +20,7 @@ export namespace ZyberswapConfig {
       `zyberswap.gasLimitEstimate`
     ),
     ttl: ConfigManagerV2.getInstance().get('zyberswap.ttl'),
+    gasMultiplier: ConfigManagerV2.getInstance().get('zyberswap.gasMultiplier'),
     zyberswapRouterAddress: (chain: string, network: string) =>
       ConfigManagerV2.getInstance().get(
         'zyberswap.contractAddresses.' +

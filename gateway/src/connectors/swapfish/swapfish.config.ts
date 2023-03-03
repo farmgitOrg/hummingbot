@@ -6,6 +6,7 @@ export namespace SwapfishConfig {
     allowedSlippage: string;
     gasLimitEstimate: number;
     ttl: number;
+    gasMultiplier: string;
     swapfishRouterAddress: (chain: string, network: string) => string;
     tradingTypes: Array<string>;
     availableNetworks: Array<AvailableNetworks>;
@@ -19,6 +20,7 @@ export namespace SwapfishConfig {
       `swapfish.gasLimitEstimate`
     ),
     ttl: ConfigManagerV2.getInstance().get('swapfish.ttl'),
+    gasMultiplier: ConfigManagerV2.getInstance().get('swapfish.gasMultiplier'),
     swapfishRouterAddress: (chain: string, network: string) =>
       ConfigManagerV2.getInstance().get(
         'swapfish.contractAddresses.' +

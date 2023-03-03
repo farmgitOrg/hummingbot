@@ -5,6 +5,7 @@
     "allowedSlippage": { "type": "string" },
     "gasLimitEstimate": { "type": "integer" },
     "ttl": { "type": "integer" },
+    "gasMultiplier": { "type": "string" },
     "contractAddresses": {
       "type": "object",
       "patternProperties": {
@@ -31,6 +32,7 @@
     "allowedSlippage",
     "gasLimitEstimate",
     "ttl",
-    "contractAddresses"
+    "contractAddresses",
+    "gasMultiplier"
   ]
 }

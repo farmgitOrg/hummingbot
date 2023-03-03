@@ -11,6 +11,8 @@ gasLimitEstimate: 150688
 # perform the trade, but the gas will still be sent.
 ttl: 600
 
+gasMultiplier: '1.5'
+
 contractAddresses:
   ethereum:
     mainnet:

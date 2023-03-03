@@ -6,6 +6,7 @@ export namespace SushiswapConfig {
     allowedSlippage: string;
     gasLimitEstimate: number;
     ttl: number;
+    gasMultiplier: string;
     sushiswapRouterAddress: (chain: string, network: string) => string;
     tradingTypes: Array<string>;
     availableNetworks: Array<AvailableNetworks>;
@@ -19,6 +20,7 @@ export namespace SushiswapConfig {
       'sushiswap.gasLimitEstimate'
     ),
     ttl: ConfigManagerV2.getInstance().get('sushiswap.ttl'),
+    gasMultiplier: ConfigManagerV2.getInstance().get('sushiswap.gasMultiplier'),
     sushiswapRouterAddress: (chain: string, network: string) =>
       ConfigManagerV2.getInstance().get(
         'sushiswap.contractAddresses.' +

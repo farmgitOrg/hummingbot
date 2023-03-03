@@ -212,7 +212,7 @@ export async function trade(
 
   let tradeInfo: TradeInfo;
   try {
-    tradeInfo = await getTradeInfo( //##@@## ！！！？？？？
+    tradeInfo = await getTradeInfo(
       ethereumish,
       uniswapish,
       req.base,
@@ -260,11 +260,11 @@ export async function trade(
       );
     }
 
-    const tx = await uniswapish.executeTrade( //##@@##
+    const tx = await uniswapish.executeTrade(
       wallet,
       tradeInfo.expectedTrade.trade,
       gasPrice,
-      uniswapish.router, //##@@## !!!!
+      uniswapish.router,
       uniswapish.ttl,
       uniswapish.routerAbi,
       gasLimitTransaction,
