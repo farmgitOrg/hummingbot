@@ -2,6 +2,7 @@ import time
 from typing import Callable, Optional
 
 import hummingbot.connector.exchange.hotbit.hotbit_constants as CONSTANTS
+from hummingbot.connector.exchange.hotbit.hotbit_rest_post_processors import HotbitRESTPostProcessorBase
 from hummingbot.connector.exchange.hotbit.hotbit_ws_post_processor import HotbitWSPostProcessor
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
@@ -37,6 +38,9 @@ def build_api_factory(
         auth=auth,
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+        ],
+        rest_post_processors=[
+            HotbitRESTPostProcessorBase()
         ],
         ws_post_processors=[HotbitWSPostProcessor()])
     return api_factory
