@@ -147,6 +147,8 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         self.expected_hedging_prices = {}
 
         all_markets = list(self._maker_markets | self._taker_markets)
+        self.hedge_buy_under_checking = False;
+        self.hedge_sell_under_checking = False;
 
         self.add_markets(all_markets)
         self.log_with_clock(logging.INFO, f"order_levels: {self.order_levels}")
@@ -996,7 +998,9 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
         # Convert maker order size (in maker base asset) to taker order size (in taker base asset)
         _, _, quote_rate, _, _, base_rate, _, _, _ = self.get_conversion_rates(market_pair)
 
-        if buy_fill_quantity > 0:
+        self.logger().info(f"check_and_hedge_orders: hedge_buy_under_checking: {self.hedge_buy_under_checking}, hedge_sell_under_checking: {self.hedge_sell_under_checking}")
+        if buy_fill_quantity > 0 and self.hedge_buy_under_checking is False:
+            self.hedge_buy_under_checking = True;
             if buy_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
                 self.hedge_buy_pending = [fill_event[1].exchange_trade_id for fill_event in buy_fill_records]
@@ -1036,6 +1040,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         quantized_hedge_amount)
                     if order_price is None:
                         self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
+                        self.hedge_buy_under_checking = False;
                         return
                     taker_top = order_price
                 else:
@@ -1075,8 +1080,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         f"{buy_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
                         f"allowed on the taker market. No hedging possible yet."
                     )
+            self.hedge_buy_under_checking = False;
 
-        if sell_fill_quantity > 0:
+        if sell_fill_quantity > 0 and self.hedge_sell_under_checking is False:
+            self.hedge_sell_under_checking = True;
             if sell_fill_quantity < self.hedge_min_quantity:
                 self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
                 self.hedge_sell_pending = [fill_event[1].exchange_trade_id for fill_event in sell_fill_records]
@@ -1094,6 +1101,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     )
                     if taker_price is None:
                         self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
+                        self.hedge_sell_under_checking = False;
                         return
                 else:
                     taker_price = taker_market.get_price_for_volume(
@@ -1172,6 +1180,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         f"{sell_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
                         f"allowed on the taker market. No hedging possible yet."
                     )
+            self.hedge_sell_under_checking = False;
 
     def get_adjusted_limit_order_size(self, market_pair: MakerTakerMarketPair, order_level: int) -> Tuple[Decimal, Decimal]:
         """
