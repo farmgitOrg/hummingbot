@@ -60,6 +60,13 @@ import {
   Currency as ZyberswapCurrency,
   TradeType as ZyberswapTradeType,
 } from '@uniswap/sdk-core';
+import { Trade as CamelotswapTrade } from 'farm-camelot-sdk';
+import {
+  Token as CamelotswapToken,
+  CurrencyAmount as CamelotswapCurrencyAmount,
+  Currency as CamelotswapCurrency,
+  TradeType as CamelotswapTradeType,
+} from '@uniswap/sdk-core';
 import {
   Token as TokenTraderjoe,
   CurrencyAmount as CurrencyAmountTraderjoe,
@@ -137,6 +144,7 @@ export type UniswapishTrade =
   | SushiswapTrade<SushiToken, SushiToken, SushiTradeType>
   | SwapfishTrade<SwapfishToken, SwapfishToken, SwapfishTradeType>
   | ZyberswapTrade<ZyberswapToken, ZyberswapToken, ZyberswapTradeType>
+  | CamelotswapTrade<CamelotswapToken, CamelotswapToken, CamelotswapTradeType>
   | UniswapV3Trade<Currency, UniswapCoreToken, TradeType>
   | TradeUniswap
   | TradeDefikingdoms
@@ -162,6 +170,7 @@ export type UniswapishAmount =
   | SushiCurrencyAmount<SushiCurrency | SushiToken>
   | SwapfishCurrencyAmount<SwapfishCurrency>
   | ZyberswapCurrencyAmount<ZyberswapCurrency>
+  | CamelotswapCurrencyAmount<CamelotswapCurrency>
   | CurrencyAmountDefikingdoms
   | PancakeSwapCurrencyAmount
   | CurrencyAmountMMF

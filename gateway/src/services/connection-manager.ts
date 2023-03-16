@@ -35,6 +35,7 @@ import { Serumish } from '../connectors/serum/serum';
 import { Near } from '../chains/near/near';
 import { Ref } from '../connectors/ref/ref';
 import { SlingshotSwap } from '../connectors/slingshotswap/slingshotswap';
+import { Camelotswap } from '../connectors/camelotswap/camelotswap';
 
 export type ChainUnion = Ethereumish | Solanaish | Nearish;
 
@@ -101,13 +102,15 @@ export async function getConnector<T>(
   let connectorInstance: ConnectorUnion;
 
   if (
-    (chain === 'ethereum' || chain === 'polygon') && connector === 'uniswap'  //##@@##!!!!!
+    (chain === 'ethereum' || chain === 'polygon') &&
+    connector === 'uniswap'
   ) {
     connectorInstance = Uniswap.getInstance(chain, network);
   } else if (chain === 'polygon' && connector === 'quickswap') {
     connectorInstance = Quickswap.getInstance(chain, network);
   } else if (
-    (chain === 'ethereum' || chain === 'polygon') && connector === 'uniswapLP'   //##@@##!!!! use this ????
+    (chain === 'ethereum' || chain === 'polygon') &&
+    connector === 'uniswapLP'
   ) {
     connectorInstance = UniswapLP.getInstance(chain, network);
   } else if (chain === 'ethereum' && connector === 'perp') {
@@ -138,6 +141,8 @@ export async function getConnector<T>(
     connectorInstance = Swapfish.getInstance(chain, network);
   } else if (connector === 'zyberswap') {
     connectorInstance = Zyberswap.getInstance(chain, network);
+  } else if (connector === 'camelotswap') {
+    connectorInstance = Camelotswap.getInstance(chain, network);
   } else if (chain === 'canto' && connector === 'slingshotswap') {
     connectorInstance = SlingshotSwap.getInstance(chain, network);
   } else {

@@ -127,3 +127,7 @@ configurations:
   $namespace canto:
     configurationPath: canto.yml
     schemaPath: ethereum-schema.json
+  
+  $namespace camelotswap:
+    configurationPath: camelotswap.yml
+    schemaPath: camelotswap-schema.json

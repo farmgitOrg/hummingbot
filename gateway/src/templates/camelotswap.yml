@@ -1,0 +1,18 @@
+
+# how much the execution price is allowed to move unfavorably from the trade
+# execution price. It uses a rational number for precision.
+allowedSlippage: '1/100'
+
+# the maximum gas allowed for a unsiwap trade.
+gasLimitEstimate: 150688
+
+# how long a trade is valid in seconds. After time passes swapfish will not
+# perform the trade, but the gas will still be sent.
+ttl: 600
+
+gasMultiplier: '1.5'
+
+contractAddresses:
+  ethereum:
+    arbitrum_one:
+      camelotswapRouterAddress: '0xc873fecbd354f5a56e00e710b90ef4201db2448d'
