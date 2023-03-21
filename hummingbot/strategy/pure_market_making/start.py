@@ -122,6 +122,7 @@ def start(self):
         self.strategy = PureMarketMakingStrategy()
         self.strategy.init_params(
             market_info=MarketTradingPairTuple(*maker_data),
+            market_pairs=self.market_pair,
             bid_spread=bid_spread,
             ask_spread=ask_spread,
             order_levels=order_levels,

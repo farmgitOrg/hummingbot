@@ -27,7 +27,7 @@ from .inventory_skew_calculator cimport c_calculate_bid_ask_ratios_from_base_ass
 from .inventory_skew_calculator import calculate_total_order_size
 from .pure_market_making_order_tracker import PureMarketMakingOrderTracker
 from .moving_price_band import MovingPriceBand
-
+from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
 
 NaN = float("nan")
 s_decimal_zero = Decimal(0)
@@ -50,6 +50,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
     def init_params(self,
                     market_info: MarketTradingPairTuple,
+                    market_pairs: MakerTakerMarketPair,
                     bid_spread: Decimal,
                     ask_spread: Decimal,
                     order_amount: Decimal,
@@ -145,6 +146,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._should_wait_order_cancel_confirmation = should_wait_order_cancel_confirmation
         self._moving_price_band = moving_price_band
         self.c_add_markets([market_info.market])
+        self._maker_market = market_pairs.maker.market
+        self._taker_market = market_pairs.taker.market
+        self._market_pairs = market_pairs
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -721,13 +725,16 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
     cdef c_tick(self, double timestamp):
         StrategyBase.c_tick(self, timestamp)
-
         cdef:
             int64_t current_tick = <int64_t>(timestamp // self._status_report_interval)
             int64_t last_tick = <int64_t>(self._last_timestamp // self._status_report_interval)
             bint should_report_warnings = ((current_tick > last_tick) and
                                            (self._logging_options & self.OPTION_LOG_STATUS_REPORT))
             cdef object proposal
+        
+        price = self._taker_market.get_price(self._market_pairs.taker.trading_pair)
+        self.logger.warning(f"##@@## price is : {price}")
+        return
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
@@ -759,7 +766,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
                 if not self._take_if_crossed:
                     self.c_filter_out_takers(proposal)
-
+            self.logger().warning(f"##@@## ")
             self._hanging_orders_tracker.process_tick()
 
             self.c_cancel_active_orders_on_max_age_limit()
