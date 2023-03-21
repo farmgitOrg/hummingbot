@@ -5,6 +5,7 @@ from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.connector.exchange.paper_trade import create_paper_trade_market
 from hummingbot.connector.exchange_base import ExchangeBase
 from hummingbot.strategy.api_asset_price_delegate import APIAssetPriceDelegate
+from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
 from hummingbot.strategy.market_trading_pair_tuple import MarketTradingPairTuple
 from hummingbot.strategy.order_book_asset_price_delegate import OrderBookAssetPriceDelegate
 from hummingbot.strategy.pure_market_making import InventoryCostPriceDelegate, PureMarketMakingStrategy
@@ -77,17 +78,33 @@ def start(self):
                 f'split_level_{i}': order for i, order in enumerate(both_list)
             }
         trading_pair: str = raw_trading_pair
+        taker_market = exchange
+        taker_trading_pair: str = trading_pair
         maker_assets: Tuple[str, str] = self._initialize_market_assets(exchange, [trading_pair])[0]
-        market_names: List[Tuple[str, List[str]]] = [(exchange, [trading_pair])]
+        taker_assets: Tuple[str, str] = self._initialize_market_assets(taker_market, [taker_trading_pair])[0]
+        market_names: List[Tuple[str, List[str]]] = [
+            (exchange, [trading_pair]),
+            (taker_market, [taker_trading_pair])
+                                                     ]
+        
         self._initialize_markets(market_names)
         maker_data = [self.markets[exchange], trading_pair] + list(maker_assets)
-        self.market_trading_pair_tuples = [MarketTradingPairTuple(*maker_data)]
+        taker_data = [self.markets[taker_market], taker_trading_pair] + list(taker_assets)
+
+        maker_market_trading_pair_tuple = MarketTradingPairTuple(*maker_data)
+        taker_market_trading_pair_tuple = MarketTradingPairTuple(*taker_data)
+        self.market_trading_pair_tuples = [maker_market_trading_pair_tuple, taker_market_trading_pair_tuple]
+        self.market_pair = MakerTakerMarketPair(maker=maker_market_trading_pair_tuple, taker=taker_market_trading_pair_tuple)
 
         asset_price_delegate = None
         if price_source == "external_market":
+            # asset_trading_pair: str = price_source_market
+            # ext_market = create_paper_trade_market(price_source_exchange, self.client_config_map, [asset_trading_pair])
+            # self.markets[price_source_exchange]: ExchangeBase = ext_market
+            # asset_price_delegate = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
+
             asset_trading_pair: str = price_source_market
-            ext_market = create_paper_trade_market(price_source_exchange, self.client_config_map, [asset_trading_pair])
-            self.markets[price_source_exchange]: ExchangeBase = ext_market
+            ext_market = self.markets[taker_market]
             asset_price_delegate = OrderBookAssetPriceDelegate(ext_market, asset_trading_pair)
         elif price_source == "custom_api":
             ext_market = create_paper_trade_market(exchange, [raw_trading_pair])
