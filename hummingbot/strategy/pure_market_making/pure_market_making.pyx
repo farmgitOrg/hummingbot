@@ -150,12 +150,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._moving_price_band = moving_price_band
         self.c_add_markets([market_info.market])
 
-        self._maker_market = market_pairs.maker.market
-        self._taker_market = market_pairs.taker.market
-        self._market_pairs = market_pairs
-        self._maker_order_id_to_filled_trades = {}
+        # self._maker_market = market_pairs.maker.market
+        # self._taker_market = market_pairs.taker.market
+        # self._market_pairs = market_pairs
+        # self._maker_order_id_to_filled_trades = {}
 
-        self._taker_delegate = TakerDelegate(self, market_pairs)
+        self._taker_delegate = TakerDelegate(market_pairs)
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -1434,8 +1434,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     if order:
                         self._hanging_orders_tracker.add_current_pairs_of_proposal_orders_executed_by_strategy(
                             CreatedPairOfOrders(order, None))
-                self._maker_to_taker_order_ids[bid_order_id] = []
-                self._maker_order_id_to_filled_trades[bid_order_id] = []
+                # self._maker_to_taker_order_ids[bid_order_id] = []
+                # self._maker_order_id_to_filled_trades[bid_order_id] = []
 
         if len(proposal.sells) > 0:
             if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
@@ -1459,8 +1459,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     order = next((o for o in self.active_orders if o.client_order_id == ask_order_id))
                     if order:
                         self._hanging_orders_tracker.current_created_pairs_of_orders[idx].sell_order = order
-                self._maker_to_taker_order_ids[ask_order_id] = []
-                self._maker_order_id_to_filled_trades[ask_order_id] = []
+                # self._maker_to_taker_order_ids[ask_order_id] = []
+                # self._maker_order_id_to_filled_trades[ask_order_id] = []
 
 
         if orders_created:

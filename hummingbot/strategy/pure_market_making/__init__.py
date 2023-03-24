@@ -6,5 +6,5 @@ from .taker_delegate import TakerDelegate
 __all__ = [
     PureMarketMakingStrategy,
     InventoryCostPriceDelegate,
-    TakerDelegate
+    TakerDelegate,
 ]
