@@ -6,6 +6,7 @@ from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.model.inventory_cost import InventoryCost
 from hummingbot.model.sql_connection_manager import SQLConnectionManager
+from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
 
 s_decimal_0 = Decimal("0")
 
@@ -18,7 +19,7 @@ class TakerDelegate:
         return pmm_taker_delegate_logger
     
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
-    def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
+    def __init__(self, market_pairs: MakerTakerMarketPair) -> None:
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
