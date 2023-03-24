@@ -28,6 +28,7 @@ from .inventory_skew_calculator import calculate_total_order_size
 from .pure_market_making_order_tracker import PureMarketMakingOrderTracker
 from .moving_price_band import MovingPriceBand
 from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
+from .taker_delegate import TakerDelegate
 
 NaN = float("nan")
 s_decimal_zero = Decimal(0)
@@ -54,6 +55,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     bid_spread: Decimal,
                     ask_spread: Decimal,
                     order_amount: Decimal,
+                    hedge_amount_threshold: Decimal,
                     order_levels: int = 1,
                     order_level_spread: Decimal = s_decimal_zero,
                     order_level_amount: Decimal = s_decimal_zero,
@@ -100,6 +102,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._ask_spread = ask_spread
         self._minimum_spread = minimum_spread
         self._order_amount = order_amount
+        self._hedge_amount_threshold = hedge_amount_threshold
         self._order_levels = order_levels
         self._buy_levels = order_levels
         self._sell_levels = order_levels
@@ -146,9 +149,13 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._should_wait_order_cancel_confirmation = should_wait_order_cancel_confirmation
         self._moving_price_band = moving_price_band
         self.c_add_markets([market_info.market])
+
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
+        self._maker_order_id_to_filled_trades = {}
+
+        self._taker_delegate = TakerDelegate(self, market_pairs)
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -732,9 +739,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                                            (self._logging_options & self.OPTION_LOG_STATUS_REPORT))
             cdef object proposal
         
-        price = self._taker_market.get_price(self._market_pairs.taker.trading_pair)
-        self.logger.warning(f"##@@## price is : {price}")
-        return
+        self._taker_delegate.debug()
+        # buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
+        # sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
+        # self.logger().warning(f"##@@## buy/sell price is : {buy_price} / {sell_price}, diff: {sell_price - buy_price}")
+        # return
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
@@ -774,8 +783,46 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self.c_cancel_orders_below_min_spread()
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
+            
+            self.c_check_hedging()
         finally:
             self._last_timestamp = timestamp
+
+    cdef c_check_hedging(self):
+        maker_buy_filled_amount = Decimal(0)
+        maker_sell_filled_amount = Decimal(0)
+        maker_buy_filled_volume = Decimal(0)
+        maker_sell_filled_volume = Decimal(0)
+        
+        for trade, event in self._maker_filled_trade_to_event.items():
+            if event.tradde_type is TradeType.BUY:
+                maker_buy_filled_amount += event.amount
+                maker_buy_filled_volume += event.amount * event.price
+            else:
+                maker_sell_filled_amount += event.amount
+                maker_sell_filled_volume += event.amount * event.price
+
+        #FIXME: handle failed order remain amount
+
+        self.log_with_clock(
+            logging.WARN,
+            f"({self.trading_pair}) maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
+            f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
+        )
+
+        maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
+        if abs(maker_unbalanced_amount) < self._hedge_amount_threshold:
+            return
+
+        self.log_with_clock(
+            logging.WARN,
+            f"({self.trading_pair}) maker_unbalanced_amount {maker_unbalanced_amount} , threshold {self._hedge_amount_threshold} , taker ({'SELL' if maker_unbalanced_amount > 0 else 'BUY'})"
+        )
+        if maker_unbalanced_amount > 0:
+            
+        
+
+        #FIXME: need update inventory after taker!!
 
     cdef object c_create_base_proposal(self):
         cdef:
@@ -1071,6 +1118,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_did_fill_order(self, object order_filled_event):
         cdef:
             str order_id = order_filled_event.order_id
+            str exchange_trade_id = order_filled_event.exchange_trade_id
             object market_info = self._sb_order_tracker.c_get_shadow_market_pair_from_order_id(order_id)
             tuple order_fill_record
 
@@ -1095,6 +1143,38 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
             if self._inventory_cost_price_delegate is not None:
                 self._inventory_cost_price_delegate.process_order_fill_event(order_filled_event)
+
+        #maker order filled
+        # if order_id in self._maker_to_taker_order_ids.keys():
+        #     if order_filled_event.trade_type is TradeType.BUY:
+        #         self._order_filled_buy_events.append(order_filled_event)
+        #     else:
+        #         self._order_filled_sell_events.append(order_filled_event)
+
+        #     # Check if this fill was already processed or not
+        #     if order_id not in self._maker_to_hedging_trades.keys(): #this is the 1st trade filled in such order
+        #         self._maker_to_hedging_trades[order_id] = [] # maker order id => [filled maker trade id]
+        #     if exchange_trade_id not in self._maker_to_hedging_trades[order_id]:
+        #         self._maker_to_hedging_trades[order_id] += [exchange_trade_id]
+
+        #         # This maker fill has not been processed yet, submit Taker hedge order
+        #         # Values have to be unique in a bidict
+        #         """
+        #         # _ongoing_hedging 记录了当前已经提交的对冲请求，以 exchange_trade_id 为key 
+        #         # 对冲前   _ongoing_hedging[ exchange_trade_id ] = exchange_trade_id; 
+        #         # 对冲place_order 后，会更新为  _ongoing_hedging[ exchange_trade_id ] = taker 单的 order_id
+        #         # 对冲单 did_complete_buy/sell_order 完成对冲后， 会清除 del _ongoing_hedging[maker_exchange_trade_id]
+        #         """
+        #         self._ongoing_hedging[exchange_trade_id] = exchange_trade_id
+                
+        #         #TODO: check hedge orders
+        #         # self.hedge_tasks_cleanup()
+        #         # self._hedge_maker_order_task = safe_ensure_future(
+        #         #     self.hedge_filled_maker_order(order_filled_event) ##@@## !!!!! 进行taker侧 对冲  ; 前面都是同步调用， 到此处开始，出现异步行为
+        #         # )
+        if order_id in self._maker_order_id_to_filled_trades.keys():
+            self._maker_order_id_to_filled_trades[order_id].append(exchange_trade_id)
+            self._maker_filled_trade_to_event[exchange_trade_id] = order_filled_event
 
     cdef c_did_complete_buy_order(self, object order_completed_event):
         cdef:
@@ -1176,6 +1256,70 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             f"Maker SELL order {limit_order_record.quantity} {limit_order_record.base_currency} @ "
             f"{limit_order_record.price} {limit_order_record.quote_currency} is filled."
         )
+
+    cdef c_did_create_buy_order(self, object order_created_event):
+        return
+
+    cdef c_did_create_sell_order(self, object order_created_event):
+        return
+
+    cdef c_did_fail_order(self, object order_failed_event):
+        cdef:
+            str order_id = order_failed_event.order_id
+            list trade_list
+        if order_id in self._maker_order_id_to_filled_trades.keys():
+            trade_list = self._maker_order_id_to_filled_trades[order_id]
+            if len(trade_list) > 0:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} failed, with existing filled trade {trade_list}"
+                )
+            else:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} failed, clean record"
+                )
+                #PyDict_DelItem(self._maker_order_id_to_filled_trades, order_id)
+                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        return
+
+    cdef c_did_cancel_order(self, object cancelled_event):
+        cdef:
+            str order_id = cancelled_event.order_id
+            list trade_list
+        if order_id in self._maker_order_id_to_filled_trades.keys():
+            trade_list = self._maker_order_id_to_filled_trades[order_id]
+            if len(trade_list) > 0:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} cancelled, with existing filled trade {trade_list}"
+                )
+            else:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} cancelled, clean record"
+                )
+                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        return
+
+    cdef c_did_expire_order(self, object expired_event):
+        cdef:
+            str order_id = expired_event.order_id
+            list trade_list
+        if order_id in self._maker_order_id_to_filled_trades.keys():
+            trade_list = self._maker_order_id_to_filled_trades[order_id]
+            if len(trade_list) > 0:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} expired, with existing filled trade {trade_list}"
+                )
+            else:
+                self.log_with_clock(
+                    logging.ERROR,
+                    f"Maker order {order_id} expired, clean record"
+                )
+                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        return
 
     cdef bint c_is_within_tolerance(self, list current_prices, list proposal_prices):
         if len(current_prices) != len(proposal_prices):
@@ -1289,6 +1433,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     if order:
                         self._hanging_orders_tracker.add_current_pairs_of_proposal_orders_executed_by_strategy(
                             CreatedPairOfOrders(order, None))
+                self._maker_to_taker_order_ids[bid_order_id] = []
+                self._maker_order_id_to_filled_trades[bid_order_id] = []
+
         if len(proposal.sells) > 0:
             if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
                 price_quote_str = [f"{sell.size.normalize()} {self.base_asset}, "
@@ -1311,6 +1458,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     order = next((o for o in self.active_orders if o.client_order_id == ask_order_id))
                     if order:
                         self._hanging_orders_tracker.current_created_pairs_of_orders[idx].sell_order = order
+                self._maker_to_taker_order_ids[ask_order_id] = []
+                self._maker_order_id_to_filled_trades[ask_order_id] = []
+
+
         if orders_created:
             self.set_timers()
 

@@ -23,6 +23,7 @@ def start(self):
 
     try:
         order_amount = c_map.get("order_amount").value
+        hedge_amount_threshold = c_map.get("hedge_amount_threshold").value
         order_refresh_time = c_map.get("order_refresh_time").value
         max_order_age = c_map.get("max_order_age").value
         bid_spread = c_map.get("bid_spread").value / Decimal('100')
@@ -127,6 +128,7 @@ def start(self):
             ask_spread=ask_spread,
             order_levels=order_levels,
             order_amount=order_amount,
+            hedge_amount_threshold=hedge_amount_threshold,
             order_level_spread=order_level_spread,
             order_level_amount=order_level_amount,
             inventory_skew_enabled=inventory_skew_enabled,

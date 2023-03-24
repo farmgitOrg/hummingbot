@@ -26,17 +26,19 @@ def validate_exchange_trading_pair(value: str) -> Optional[str]:
     exchange = pure_market_making_config_map.get("exchange").value
     return validate_market_trading_pair(exchange, value)
 
-
 def order_amount_prompt() -> str:
     trading_pair = pure_market_making_config_map["market"].value
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the amount of {base_asset} per order? >>> "
 
+def hedge_threshold_amount_prompt() -> str:
+    trading_pair = pure_market_making_config_map["market"].value
+    base_asset, quote_asset = trading_pair.split("-")
+    return f"What is the hedging threshold amount of {base_asset} to taker? >>> "
 
 def validate_price_source(value: str) -> Optional[str]:
     if value not in {"current_market", "external_market", "custom_api"}:
         return "Invalid price source type."
-
 
 def on_validate_price_source(value: str):
     if value != "external_market":
@@ -178,6 +180,12 @@ pure_market_making_config_map = {
     "order_amount":
         ConfigVar(key="order_amount",
                   prompt=order_amount_prompt,
+                  type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
+                  prompt_on_new=True),
+    "hedge_amount_threshold":
+        ConfigVar(key="hedge_amount_threshold",
+                  prompt=hedge_amount_threshold_prompt,
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
                   prompt_on_new=True),

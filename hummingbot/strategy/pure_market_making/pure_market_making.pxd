@@ -13,6 +13,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _ask_spread
         object _minimum_spread
         object _order_amount
+        object _hedge_amount_threshold
         int _order_levels
         int _buy_levels
         int _sell_levels
@@ -58,6 +59,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         bint _should_wait_order_cancel_confirmation
 
         object _moving_price_band
+        object _maker_market
+        object _taker_market
+        object _market_pairs
+
+        object _taker_delegate
 
     cdef object c_get_mid_price(self)
     cdef object c_create_base_proposal(self)
