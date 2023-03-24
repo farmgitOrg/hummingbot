@@ -31,7 +31,7 @@ def order_amount_prompt() -> str:
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the amount of {base_asset} per order? >>> "
 
-def hedge_threshold_amount_prompt() -> str:
+def hedge_amount_threshold_prompt() -> str:
     trading_pair = pure_market_making_config_map["market"].value
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the hedging threshold amount of {base_asset} to taker? >>> "
