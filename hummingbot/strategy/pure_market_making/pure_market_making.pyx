@@ -784,45 +784,45 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
             
-            self.c_check_hedging()
+            # self.c_check_hedging()
         finally:
             self._last_timestamp = timestamp
 
-    cdef c_check_hedging(self):
-        maker_buy_filled_amount = Decimal(0)
-        maker_sell_filled_amount = Decimal(0)
-        maker_buy_filled_volume = Decimal(0)
-        maker_sell_filled_volume = Decimal(0)
+    # cdef c_check_hedging(self):
+    #     maker_buy_filled_amount = Decimal(0)
+    #     maker_sell_filled_amount = Decimal(0)
+    #     maker_buy_filled_volume = Decimal(0)
+    #     maker_sell_filled_volume = Decimal(0)
         
-        for trade, event in self._maker_filled_trade_to_event.items():
-            if event.tradde_type is TradeType.BUY:
-                maker_buy_filled_amount += event.amount
-                maker_buy_filled_volume += event.amount * event.price
-            else:
-                maker_sell_filled_amount += event.amount
-                maker_sell_filled_volume += event.amount * event.price
+    #     for trade, event in self._maker_filled_trade_to_event.items():
+    #         if event.tradde_type is TradeType.BUY:
+    #             maker_buy_filled_amount += event.amount
+    #             maker_buy_filled_volume += event.amount * event.price
+    #         else:
+    #             maker_sell_filled_amount += event.amount
+    #             maker_sell_filled_volume += event.amount * event.price
 
-        #FIXME: handle failed order remain amount
+    #     #FIXME: handle failed order remain amount
 
-        self.log_with_clock(
-            logging.WARN,
-            f"({self.trading_pair}) maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
-            f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
-        )
+    #     self.log_with_clock(
+    #         logging.WARN,
+    #         f"({self.trading_pair}) maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
+    #         f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
+    #     )
 
-        maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
-        if abs(maker_unbalanced_amount) < self._hedge_amount_threshold:
-            return
+    #     maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
+    #     if abs(maker_unbalanced_amount) < self._hedge_amount_threshold:
+    #         return
 
-        self.log_with_clock(
-            logging.WARN,
-            f"({self.trading_pair}) maker_unbalanced_amount {maker_unbalanced_amount} , threshold {self._hedge_amount_threshold} , taker ({'SELL' if maker_unbalanced_amount > 0 else 'BUY'})"
-        )
-        if maker_unbalanced_amount > 0:
+    #     self.log_with_clock(
+    #         logging.WARN,
+    #         f"({self.trading_pair}) maker_unbalanced_amount {maker_unbalanced_amount} , threshold {self._hedge_amount_threshold} , taker ({'SELL' if maker_unbalanced_amount > 0 else 'BUY'})"
+    #     )
+    #     if maker_unbalanced_amount > 0:
             
         
 
-        #FIXME: need update inventory after taker!!
+    #     #FIXME: need update inventory after taker!!
 
     cdef object c_create_base_proposal(self):
         cdef:
