@@ -20,7 +20,7 @@ class TakerDelegate:
         return pmm_taker_delegate_logger
     
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
-    def __init__(self, logger: , market_pairs: MakerTakerMarketPair) -> None:
+    def __init__(self, market_pairs: MakerTakerMarketPair) -> None:
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
