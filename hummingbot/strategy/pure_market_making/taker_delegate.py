@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
@@ -9,6 +10,13 @@ from hummingbot.model.sql_connection_manager import SQLConnectionManager
 s_decimal_0 = Decimal("0")
 
 class TakerDelegate:
+    @classmethod
+    def logger(cls):
+        global pmm_taker_delegate_logger
+        if pmm_taker_delegate_logger is None:
+            pmm_taker_delegate_logger = logging.getLogger(__name__)
+        return pmm_taker_delegate_logger
+    
     def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
