@@ -17,16 +17,17 @@ class TakerDelegate:
             pmm_taker_delegate_logger = logging.getLogger(__name__)
         return pmm_taker_delegate_logger
     
+    # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
     def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
-        self._strategy = strategy
+        # self._strategy = strategy
 
     def debug():
         buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
         sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
-        self._strategy.logger().warning(f"##@@## buy/sell price is : {buy_price} / {sell_price}, diff: {sell_price - buy_price}")
+        self.logger().warning(f"##@@## buy/sell price is : {buy_price} / {sell_price}, diff: {sell_price - buy_price}")
         
     def get_price(self, is_buy:bool) -> Optional[Decimal]:
         with self.sql_manager.get_new_session() as session:

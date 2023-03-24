@@ -740,6 +740,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             cdef object proposal
         
         self._taker_delegate.debug()
+        return
         # buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
         # sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
         # self.logger().warning(f"##@@## buy/sell price is : {buy_price} / {sell_price}, diff: {sell_price - buy_price}")
