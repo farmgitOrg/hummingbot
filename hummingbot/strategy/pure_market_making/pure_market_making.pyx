@@ -1108,7 +1108,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             if self._inventory_cost_price_delegate is not None:
                 self._inventory_cost_price_delegate.process_order_fill_event(order_filled_event)
 
-            self._taker_delegate.did_fill_order(order_filled_event)
+            self._taker_delegate.did_fill_maker_order(order_filled_event)
+        else:
+            self._taker_delegate.did_fill_taker_order(order_filled_event)
         #maker order filled
         # if order_id in self._maker_to_taker_order_ids.keys():
         #     if order_filled_event.trade_type is TradeType.BUY:
