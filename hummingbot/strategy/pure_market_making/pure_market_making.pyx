@@ -155,7 +155,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         # self._market_pairs = market_pairs
         # self._maker_order_id_to_filled_trades = {}
 
-        self._taker_delegate = TakerDelegate(market_pairs)
+        self._taker_delegate = TakerDelegate(market_pairs, Decimal(10))
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -737,14 +737,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             int64_t last_tick = <int64_t>(self._last_timestamp // self._status_report_interval)
             bint should_report_warnings = ((current_tick > last_tick) and
                                            (self._logging_options & self.OPTION_LOG_STATUS_REPORT))
+            int64_t current_hedge_tick = <int64_t>(timestamp // self._min_hedge_interval)
+            int64_t last_hedge_tick = <int64_t>(self._last_timestamp // self._min_hedge_interval)
+            bint hedge_tick_reached = (current_hedge_tick > last_hedge_tick)
             cdef object proposal
         
-        self._taker_delegate.debug()
-        return
-        # buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
-        # sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
-        # self.logger().warning(f"##@@## buy/sell price is : {buy_price} / {sell_price}, diff: {sell_price - buy_price}")
-        # return
+        # self._taker_delegate.debug()
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
@@ -784,46 +782,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self.c_cancel_orders_below_min_spread()
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
-            
-            # self.c_check_hedging()
+
+            if hedge_tick_reached or self._taker_delegate.need_do_hedge():
+                self._taker_delegate.check_and_process_hedge()
         finally:
             self._last_timestamp = timestamp
-
-    # cdef c_check_hedging(self):
-    #     maker_buy_filled_amount = Decimal(0)
-    #     maker_sell_filled_amount = Decimal(0)
-    #     maker_buy_filled_volume = Decimal(0)
-    #     maker_sell_filled_volume = Decimal(0)
-        
-    #     for trade, event in self._maker_filled_trade_to_event.items():
-    #         if event.tradde_type is TradeType.BUY:
-    #             maker_buy_filled_amount += event.amount
-    #             maker_buy_filled_volume += event.amount * event.price
-    #         else:
-    #             maker_sell_filled_amount += event.amount
-    #             maker_sell_filled_volume += event.amount * event.price
-
-    #     #FIXME: handle failed order remain amount
-
-    #     self.log_with_clock(
-    #         logging.WARN,
-    #         f"({self.trading_pair}) maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
-    #         f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
-    #     )
-
-    #     maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
-    #     if abs(maker_unbalanced_amount) < self._hedge_amount_threshold:
-    #         return
-
-    #     self.log_with_clock(
-    #         logging.WARN,
-    #         f"({self.trading_pair}) maker_unbalanced_amount {maker_unbalanced_amount} , threshold {self._hedge_amount_threshold} , taker ({'SELL' if maker_unbalanced_amount > 0 else 'BUY'})"
-    #     )
-    #     if maker_unbalanced_amount > 0:
-            
-        
-
-    #     #FIXME: need update inventory after taker!!
 
     cdef object c_create_base_proposal(self):
         cdef:
@@ -1145,6 +1108,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             if self._inventory_cost_price_delegate is not None:
                 self._inventory_cost_price_delegate.process_order_fill_event(order_filled_event)
 
+            self._taker_delegate.did_fill_order(order_filled_event)
         #maker order filled
         # if order_id in self._maker_to_taker_order_ids.keys():
         #     if order_filled_event.trade_type is TradeType.BUY:
