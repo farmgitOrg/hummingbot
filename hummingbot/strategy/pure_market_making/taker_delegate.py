@@ -31,8 +31,9 @@ class TakerDelegate:
         return pmm_taker_delegate_logger
 
     def log_with_clock(self, log_level: int, msg: str, **kwargs):
-        clock_timestamp = pd.Timestamp(self._current_timestamp, unit="s", tz="UTC")
-        self.logger().log(log_level, f"{msg} [clock={str(clock_timestamp)}]", **kwargs)
+        # clock_timestamp = pd.Timestamp(self._current_timestamp, unit="s", tz="UTC")
+        # self.logger().log(log_level, f"{msg} [clock={str(clock_timestamp)}]", **kwargs)
+        self.logger().log(log_level, f"{msg}: ", **kwargs)
 
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
     def __init__(self, market_pairs: MakerTakerMarketPair, check_hedge_interval_sec:Decimal, hedge_amount_threshold:Decimal) -> None:
@@ -80,11 +81,16 @@ class TakerDelegate:
                 maker_sell_filled_amount += event.amount
                 maker_sell_filled_volume += event.amount * event.price
 
-        self.log_with_clock(
-            logging.WARN,
-            f"check_and_process_hedge: maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
-            f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
-        )
+        if maker_buy_filled_amount > 0:
+            self.log_with_clock(
+                logging.WARN,
+                f"check_and_process_hedge: maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
+            )
+        if maker_sell_filled_amount > 0:
+            self.log_with_clock(
+                logging.WARN,
+                f"check_and_process_hedge: maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
+            )
         #update the event record beforehand, to avoid any blocking ops later
         self._hedging_ongoing_record_set = self._maker_filled_events_set  # FIXME: handle _hedging_ongoing_record_set not empty case
         self._maker_filled_events_set = {}

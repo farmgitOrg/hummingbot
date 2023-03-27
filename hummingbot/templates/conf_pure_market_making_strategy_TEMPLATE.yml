@@ -146,5 +146,7 @@ ask_order_level_amounts: null
 # If the strategy should wait to receive cancellations confirmation before creating new orders during refresh time
 should_wait_order_cancel_confirmation: True
 
+hedge_amount_threshold: null
+
 # For more detailed information, see:
 # https://docs.hummingbot.io/strategies/pure-market-making/#configuration-parameters
