@@ -82,7 +82,7 @@ class TakerDelegate:
 
         self.log_with_clock(
             logging.WARN,
-            f"({self.trading_pair}) maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
+            f"check_and_process_hedge: maker_buy_filled_amount: {maker_buy_filled_amount} @ avgprice {maker_buy_filled_volume/maker_buy_filled_amount} "
             f"maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
         )
         #update the event record beforehand, to avoid any blocking ops later
