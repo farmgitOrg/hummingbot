@@ -56,6 +56,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     ask_spread: Decimal,
                     order_amount: Decimal,
                     hedge_amount_threshold: Decimal,
+                    force_hedge_interval: float,
                     order_levels: int = 1,
                     order_level_spread: Decimal = s_decimal_zero,
                     order_level_amount: Decimal = s_decimal_zero,
@@ -88,7 +89,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     bid_order_level_spreads: List[Decimal] = None,
                     ask_order_level_spreads: List[Decimal] = None,
                     should_wait_order_cancel_confirmation: bool = True,
-                    moving_price_band: Optional[MovingPriceBand] = None
+                    moving_price_band: Optional[MovingPriceBand] = None,
                     ):
         if order_override is None:
             order_override = {}
@@ -102,7 +103,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._ask_spread = ask_spread
         self._minimum_spread = minimum_spread
         self._order_amount = order_amount
-        self._hedge_amount_threshold = hedge_amount_threshold
         self._order_levels = order_levels
         self._buy_levels = order_levels
         self._sell_levels = order_levels
@@ -154,8 +154,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         # self._taker_market = market_pairs.taker.market
         # self._market_pairs = market_pairs
         # self._maker_order_id_to_filled_trades = {}
-        self._force_hedge_interval = 10
-        self._taker_delegate = TakerDelegate(market_pairs, Decimal(10), hedge_amount_threshold)
+        self._force_hedge_interval = force_hedge_interval
+        self._hedge_amount_threshold = hedge_amount_threshold
+        self._taker_delegate = TakerDelegate(market_pairs, force_hedge_interval, hedge_amount_threshold)
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -783,8 +784,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
 
-            if hedge_tick_reached or self._taker_delegate.need_do_hedge():
-                self._taker_delegate.check_and_process_hedge()
+            # if hedge_tick_reached or self._taker_delegate.need_do_hedge():
+            self._taker_delegate.check_and_process_hedge(hedge_tick_reached)
         finally:
             self._last_timestamp = timestamp
 
@@ -1141,9 +1142,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         #         # self._hedge_maker_order_task = safe_ensure_future(
         #         #     self.hedge_filled_maker_order(order_filled_event) ##@@## !!!!! 进行taker侧 对冲  ; 前面都是同步调用， 到此处开始，出现异步行为
         #         # )
-        if order_id in self._maker_order_id_to_filled_trades.keys():
-            self._maker_order_id_to_filled_trades[order_id].append(exchange_trade_id)
-            self._maker_filled_trade_to_event[exchange_trade_id] = order_filled_event
+        # if order_id in self._maker_order_id_to_filled_trades.keys():
+        #     self._maker_order_id_to_filled_trades[order_id].append(exchange_trade_id)
+        #     self._maker_filled_trade_to_event[exchange_trade_id] = order_filled_event
 
     cdef c_did_complete_buy_order(self, object order_completed_event):
         cdef:
@@ -1240,20 +1241,20 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         cdef:
             str order_id = order_failed_event.order_id
             list trade_list
-        if order_id in self._maker_order_id_to_filled_trades.keys():
-            trade_list = self._maker_order_id_to_filled_trades[order_id]
-            if len(trade_list) > 0:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} failed, with existing filled trade {trade_list}"
-                )
-            else:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} failed, clean record"
-                )
-                #PyDict_DelItem(self._maker_order_id_to_filled_trades, order_id)
-                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        # if order_id in self._maker_order_id_to_filled_trades.keys():
+        #     trade_list = self._maker_order_id_to_filled_trades[order_id]
+        #     if len(trade_list) > 0:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} failed, with existing filled trade {trade_list}"
+        #         )
+        #     else:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} failed, clean record"
+        #         )
+        #         #PyDict_DelItem(self._maker_order_id_to_filled_trades, order_id)
+        #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
 
         self._taker_delegate.did_fail_order(order_failed_event)
         return
@@ -1262,19 +1263,19 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         cdef:
             str order_id = cancelled_event.order_id
             list trade_list
-        if order_id in self._maker_order_id_to_filled_trades.keys():
-            trade_list = self._maker_order_id_to_filled_trades[order_id]
-            if len(trade_list) > 0:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} cancelled, with existing filled trade {trade_list}"
-                )
-            else:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} cancelled, clean record"
-                )
-                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        # if order_id in self._maker_order_id_to_filled_trades.keys():
+        #     trade_list = self._maker_order_id_to_filled_trades[order_id]
+        #     if len(trade_list) > 0:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} cancelled, with existing filled trade {trade_list}"
+        #         )
+        #     else:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} cancelled, clean record"
+        #         )
+        #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
         self._taker_delegate.did_cancel_order(cancelled_event)
         return
 
@@ -1282,19 +1283,19 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         cdef:
             str order_id = expired_event.order_id
             list trade_list
-        if order_id in self._maker_order_id_to_filled_trades.keys():
-            trade_list = self._maker_order_id_to_filled_trades[order_id]
-            if len(trade_list) > 0:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} expired, with existing filled trade {trade_list}"
-                )
-            else:
-                self.log_with_clock(
-                    logging.ERROR,
-                    f"Maker order {order_id} expired, clean record"
-                )
-                self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
+        # if order_id in self._maker_order_id_to_filled_trades.keys():
+        #     trade_list = self._maker_order_id_to_filled_trades[order_id]
+        #     if len(trade_list) > 0:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} expired, with existing filled trade {trade_list}"
+        #         )
+        #     else:
+        #         self.log_with_clock(
+        #             logging.ERROR,
+        #             f"Maker order {order_id} expired, clean record"
+        #         )
+        #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
         self._taker_delegate.did_expire_order(expired_event)
         return
 

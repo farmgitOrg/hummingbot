@@ -36,12 +36,12 @@ class TakerDelegate:
         self.logger().log(log_level, f"{msg}: ", **kwargs)
 
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
-    def __init__(self, market_pairs: MakerTakerMarketPair, check_hedge_interval_sec:Decimal, hedge_amount_threshold:Decimal) -> None:
+    def __init__(self, market_pairs: MakerTakerMarketPair, force_hedge_initerval:float, hedge_amount_threshold:Decimal) -> None:
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
         # self._strategy = strategy
-        self._check_hedge_interval = check_hedge_interval_sec
+        self._force_hedge_initerval = force_hedge_initerval
         self._hedge_amount_threshold = hedge_amount_threshold
         self._maker_order_id_to_filled_trades = {}
         self._maker_filled_trades_set:set = set()
@@ -67,7 +67,7 @@ class TakerDelegate:
     def need_do_hedge(self) -> bool:
         return True
 
-    def check_and_process_hedge(self):
+    def check_and_process_hedge(self, hedge_tick_reached:int):
         maker_buy_filled_amount = Decimal(0)
         maker_sell_filled_amount = Decimal(0)
         maker_buy_filled_volume = Decimal(0)
@@ -97,8 +97,11 @@ class TakerDelegate:
     
         order_id = None
         maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
+        if maker_unbalanced_amount == 0:
+            return
+
         order_type = self._market_pairs.taker.market.get_taker_order_type()
-        if maker_unbalanced_amount > self._hedge_amount_threshold: # buy amount > sell amount on maker, sell on taker market
+        if maker_unbalanced_amount > self._hedge_amount_threshold or hedge_tick_reached: # buy amount > sell amount on maker, sell on taker market
             amount = maker_unbalanced_amount
             self.log_with_clock(
                 logging.WARN,
@@ -114,7 +117,7 @@ class TakerDelegate:
                 self.logger().warning(f"taker_delegate: Placing a taker SELL order on market {str(self._market_pairs.taker.market.name)} "
                                       f"failed with the following error: {str(e)}")
 
-        elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold: # buy amount < sell amount on maker, buy on taker market
+        elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold or hedge_tick_reached: # buy amount < sell amount on maker, buy on taker market
             amount = -maker_unbalanced_amount
             self.log_with_clock(
                 logging.WARN,

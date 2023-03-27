@@ -14,6 +14,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _minimum_spread
         object _order_amount
         object _hedge_amount_threshold
+        double _force_hedge_interval
         int _order_levels
         int _buy_levels
         int _sell_levels
@@ -57,7 +58,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         int64_t _logging_options
         object _last_own_trade_price
         bint _should_wait_order_cancel_confirmation
-        double _force_hedge_interval
 
         object _moving_price_band
         object _maker_market
