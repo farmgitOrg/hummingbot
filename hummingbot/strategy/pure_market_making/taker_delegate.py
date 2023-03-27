@@ -93,10 +93,11 @@ class TakerDelegate:
             )
         #update the event record beforehand, to avoid any blocking ops later
         self._hedging_ongoing_record_set = self._maker_filled_events_set  # FIXME: handle _hedging_ongoing_record_set not empty case
-        self._maker_filled_events_set = {}
+        self._maker_filled_events_set = set()
     
         order_id = None
         maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
+        order_type = self._market_pairs.taker.market.get_taker_order_type()
         if maker_unbalanced_amount > self._hedge_amount_threshold: # buy amount > sell amount on maker, sell on taker market
             amount = maker_unbalanced_amount
             self.log_with_clock(
@@ -140,16 +141,16 @@ class TakerDelegate:
         if order_id is None:
             #recover event record if any error
             self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_ongoing_record_set
-            self._hedging_ongoing_record_set = {}
+            self._hedging_ongoing_record_set = set()
             return
         
         self._hedging_taker_order_id_to_taker_filled_trades[order_id] = []
         self._hedging_taker_order_id_to_maker_filled_trades[order_id] = self._hedging_ongoing_record_set
         return order_id
 
-    def did_create_buy_order(self):
+    def did_create_buy_order(self, order_created_event: BuyOrderCreatedEvent):
         return
-    def did_create_sell_order(self):
+    def did_create_sell_order(self, order_created_event: SellOrderCreatedEvent):
         return
 
     def did_cancel_order(self, order_canceled_event: OrderCancelledEvent):
