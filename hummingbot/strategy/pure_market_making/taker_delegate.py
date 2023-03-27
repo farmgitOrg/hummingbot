@@ -29,7 +29,11 @@ class TakerDelegate:
         if pmm_taker_delegate_logger is None:
             pmm_taker_delegate_logger = logging.getLogger(__name__)
         return pmm_taker_delegate_logger
-    
+
+    def log_with_clock(self, log_level: int, msg: str, **kwargs):
+        clock_timestamp = pd.Timestamp(self._current_timestamp, unit="s", tz="UTC")
+        self.logger().log(log_level, f"{msg} [clock={str(clock_timestamp)}]", **kwargs)
+
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
     def __init__(self, market_pairs: MakerTakerMarketPair, check_hedge_interval_sec:Decimal, hedge_amount_threshold:Decimal) -> None:
         self._maker_market = market_pairs.maker.market
