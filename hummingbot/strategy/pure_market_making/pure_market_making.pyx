@@ -155,7 +155,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         # self._market_pairs = market_pairs
         # self._maker_order_id_to_filled_trades = {}
         self._force_hedge_interval = 10
-        self._taker_delegate = TakerDelegate(market_pairs, Decimal(10))
+        self._taker_delegate = TakerDelegate(market_pairs, Decimal(10), hedge_amount_threshold)
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -742,7 +742,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             bint hedge_tick_reached = (current_hedge_tick > last_hedge_tick)
             cdef object proposal
         
-        # self._taker_delegate.debug()
+        self._taker_delegate.debug()
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
