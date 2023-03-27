@@ -36,9 +36,7 @@ def hedge_amount_threshold_prompt() -> str:
     base_asset, quote_asset = trading_pair.split("-")
     return f"What is the hedging threshold amount of {base_asset} to taker? >>> "
 
-def force_hedging_interval_prompt() -> str:
-    trading_pair = pure_market_making_config_map["market"].value
-    base_asset, quote_asset = trading_pair.split("-")
+def force_hedge_interval_prompt() -> str:
     return f"What is the hedging interval (sec) for taker? >>> "
 
 def validate_price_source(value: str) -> Optional[str]:
@@ -194,9 +192,9 @@ pure_market_making_config_map = {
                   type_str="decimal",
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
                   prompt_on_new=True),
-    "force_hedging_interval":
-        ConfigVar(key="force_hedging_interval",
-                  prompt=force_hedging_interval_prompt,
+    "force_hedge_interval":
+        ConfigVar(key="force_hedge_interval",
+                  prompt=force_hedge_interval_prompt,
                   type_str="decimal",
                   default=Decimal("20"),
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
