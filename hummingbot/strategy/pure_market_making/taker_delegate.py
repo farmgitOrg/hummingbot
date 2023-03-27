@@ -16,6 +16,7 @@ from hummingbot.core.event.events import (
     OrderFilledEvent,
     SellOrderCompletedEvent,
     SellOrderCreatedEvent,
+    OrderExpiredEvent
 )
 
 s_decimal_0 = Decimal("0")

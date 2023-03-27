@@ -154,7 +154,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         # self._taker_market = market_pairs.taker.market
         # self._market_pairs = market_pairs
         # self._maker_order_id_to_filled_trades = {}
-
+        self._force_hedge_interval = 10
         self._taker_delegate = TakerDelegate(market_pairs, Decimal(10))
 
     def all_markets_ready(self):
@@ -737,8 +737,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             int64_t last_tick = <int64_t>(self._last_timestamp // self._status_report_interval)
             bint should_report_warnings = ((current_tick > last_tick) and
                                            (self._logging_options & self.OPTION_LOG_STATUS_REPORT))
-            int64_t current_hedge_tick = <int64_t>(timestamp // self._min_hedge_interval)
-            int64_t last_hedge_tick = <int64_t>(self._last_timestamp // self._min_hedge_interval)
+            int64_t current_hedge_tick = <int64_t>(timestamp // self._force_hedge_interval)
+            int64_t last_hedge_tick = <int64_t>(self._last_timestamp // self._force_hedge_interval)
             bint hedge_tick_reached = (current_hedge_tick > last_hedge_tick)
             cdef object proposal
         
@@ -1112,7 +1112,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         else:
             self._taker_delegate.did_fill_taker_order(order_filled_event)
         
-        
+
         #maker order filled
         # if order_id in self._maker_to_taker_order_ids.keys():
         #     if order_filled_event.trade_type is TradeType.BUY:
