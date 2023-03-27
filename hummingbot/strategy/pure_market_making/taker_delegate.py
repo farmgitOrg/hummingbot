@@ -58,7 +58,7 @@ class TakerDelegate:
         taker_price = self._market_pairs.taker.get_price_for_volume(is_buy, base_size.result_price)
         return taker_price
 
-    def need_do_hedge(self) -> Bool:
+    def need_do_hedge(self) -> bool:
         return True
 
     def check_and_process_hedge(self):

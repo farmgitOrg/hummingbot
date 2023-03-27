@@ -1111,6 +1111,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self._taker_delegate.did_fill_maker_order(order_filled_event)
         else:
             self._taker_delegate.did_fill_taker_order(order_filled_event)
+        
+        
         #maker order filled
         # if order_id in self._maker_to_taker_order_ids.keys():
         #     if order_filled_event.trade_type is TradeType.BUY:
