@@ -56,7 +56,9 @@ class TakerDelegate:
         self._hedging_ongoing_record_set:set = set()
         self._hedging_taker_order_id_to_taker_filled_trades = {} # taker order id -> taker filled trades events
         self._hedging_taker_order_id_to_maker_filled_trades = {}  # taker order id -> 所对冲的maker filled trades events
-
+        self._buy_filled_amount: Decimal = 0
+        self._sell_filled_amount: Decimal = 0
+        
     def debug(self):
         # buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
         # sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
@@ -99,7 +101,7 @@ class TakerDelegate:
                 f"check_and_process_hedge: maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
             )
         #update the event record beforehand, to avoid any blocking ops later
-        self._hedging_ongoing_record_set = self._maker_filled_events_set  # FIXME: handle _hedging_ongoing_record_set not empty case
+        self._hedging_ongoing_record_set = self._maker_filled_events_set.copy()  # FIXME: handle _hedging_ongoing_record_set not empty case
         self._maker_filled_events_set = set()
     
         order_id = None
@@ -204,6 +206,8 @@ class TakerDelegate:
                 f"taker_delegate: did_cancel_order {order_id}"
             )
             del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
+            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
+            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
 
     def did_fail_order(self, order_failed_event: MarketOrderFailureEvent):
         order_id:str = order_failed_event.order_id
@@ -213,15 +217,19 @@ class TakerDelegate:
                 f"taker_delegate: did_fail_order {order_id}"
             )
             del self._hedging_taker_order_id_to_taker_filled_trades[order_id] #FIXME: partial filled
+            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
+            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
 
-    def did_expire_order(self, order_expired_event: OrderExpiredEvent):
+    def did_expire_order(self, order_expired_event: OrderExpiredEvent):   #FIXME: for expired order, do we need manually cancel it?
         order_id:str = order_expired_event.order_id
         if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_expire_order {order_id}"
             )
-            del self._hedging_taker_order_id_to_taker_filled_trades[order_id] #FIXME: partial filled
+            del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
+            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
+            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
 
     def did_complete_buy_order(self, order_completed_event: BuyOrderCompletedEvent):
         order_id:str = order_completed_event.order_id
@@ -264,5 +272,5 @@ class TakerDelegate:
         exchange_trade_id:str = order_filled_event.exchange_trade_id
         
         if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
-            self._hedging_taker_order_id_to_taker_filled_trades[order_id].append(order_filled_event)
+            self._hedging_taker_order_id_to_taker_filled_trades[order_id].append(order_filled_event) ##@@## TODO: handle partial filled amount when check hedging
         return
