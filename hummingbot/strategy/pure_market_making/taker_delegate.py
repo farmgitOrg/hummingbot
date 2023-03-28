@@ -105,9 +105,10 @@ class TakerDelegate:
         order_id = None
         maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
         if maker_unbalanced_amount == 0:
+            self.logger().debug(f"check_and_process_hedge: no unhedged offer, return")
             return
 
-        order_type = self._market_pairs.taker.market.get_taker_order_type()
+        order_type = self._market_pairs.taker.market.get_taker_order_type() #TODO: user MARKET order
         taker_trading_pair = self._market_pairs.taker.trading_pair
         taker_market = self._market_pairs.taker.market
         base_rate = 1
@@ -187,7 +188,7 @@ class TakerDelegate:
             return
         
         self._hedging_taker_order_id_to_taker_filled_trades[order_id] = []
-        self._hedging_taker_order_id_to_maker_filled_trades[order_id] = self._hedging_ongoing_record_set
+        self._hedging_taker_order_id_to_maker_filled_trades[order_id] = self._hedging_ongoing_record_set.copy()
         return order_id
 
     def did_create_buy_order(self, order_created_event: BuyOrderCreatedEvent):
