@@ -148,6 +148,6 @@ should_wait_order_cancel_confirmation: True
 
 hedge_amount_threshold: null
 force_hedge_interval: null
-
+taker_slippage_buffer: null
 # For more detailed information, see:
 # https://docs.hummingbot.io/strategies/pure-market-making/#configuration-parameters

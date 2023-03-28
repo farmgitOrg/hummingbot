@@ -56,6 +56,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     ask_spread: Decimal,
                     order_amount: Decimal,
                     hedge_amount_threshold: Decimal,
+                    slippage_buffer: Decimal,
                     force_hedge_interval: float,
                     order_levels: int = 1,
                     order_level_spread: Decimal = s_decimal_zero,
@@ -156,7 +157,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         # self._maker_order_id_to_filled_trades = {}
         self._force_hedge_interval = force_hedge_interval
         self._hedge_amount_threshold = hedge_amount_threshold
-        self._taker_delegate = TakerDelegate(market_pairs, force_hedge_interval, hedge_amount_threshold)
+        self._slippage_buffer = slippage_buffer
+        self._taker_delegate = TakerDelegate(self, market_pairs, force_hedge_interval, hedge_amount_threshold, slippage_buffer)
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])

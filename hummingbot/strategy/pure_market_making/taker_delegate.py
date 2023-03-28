@@ -36,11 +36,18 @@ class TakerDelegate:
         self.logger().log(log_level, f"{msg}: ", **kwargs)
 
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
-    def __init__(self, market_pairs: MakerTakerMarketPair, force_hedge_initerval:float, hedge_amount_threshold:Decimal) -> None:
+    def __init__(self,
+                 strategy: StrategyBase,
+                 market_pairs: MakerTakerMarketPair, 
+                 force_hedge_initerval:float,
+                 hedge_amount_threshold:Decimal,
+                 slippage_buffer: Decimal
+                 ) -> None:
+        self._strategy = strategy
         self._maker_market = market_pairs.maker.market
         self._taker_market = market_pairs.taker.market
         self._market_pairs = market_pairs
-        # self._strategy = strategy
+        self._slippage_buffer = slippage_buffer / Decimal("100")
         self._force_hedge_initerval = force_hedge_initerval
         self._hedge_amount_threshold = hedge_amount_threshold
         self._maker_order_id_to_filled_trades = {}
@@ -67,7 +74,7 @@ class TakerDelegate:
     def need_do_hedge(self) -> bool:
         return True
 
-    def check_and_process_hedge(self, hedge_tick_reached:int):
+    def check_and_process_hedge(self, hedge_tick_reached:bool):
         maker_buy_filled_amount = Decimal(0)
         maker_sell_filled_amount = Decimal(0)
         maker_buy_filled_volume = Decimal(0)
@@ -101,42 +108,74 @@ class TakerDelegate:
             return
 
         order_type = self._market_pairs.taker.market.get_taker_order_type()
-        if maker_unbalanced_amount > self._hedge_amount_threshold or hedge_tick_reached: # buy amount > sell amount on maker, sell on taker market
+        taker_trading_pair = self._market_pairs.taker.trading_pair
+        taker_market = self._market_pairs.taker.market
+        base_rate = 1
+        expiration_seconds = 100 # FIXME:
+        # buy amount > sell amount on maker, sell on taker market
+        if maker_unbalanced_amount > self._hedge_amount_threshold or (maker_unbalanced_amount> 0 and hedge_tick_reached): 
             amount = maker_unbalanced_amount
-            self.log_with_clock(
-                logging.WARN,
-                f"({self.trading_pair}) maker_unbalanced_amount {amount} > " 
-                f"threshold {self._hedge_amount_threshold} , taker SELL amount {amount}"
-            )
-            sell_price = self.get_taker_price(maker_unbalanced_amount, False)
-            try:
-                order_id = self.sell_with_specific_market(self._market_pairs.taker, amount,
-                                                         order_type=order_type, price=sell_price,
-                                                         expiration_seconds=expiration_seconds) # TODO: 60sec for CEX
-            except ValueError as e:
-                self.logger().warning(f"taker_delegate: Placing a taker SELL order on market {str(self._market_pairs.taker.market.name)} "
-                                      f"failed with the following error: {str(e)}")
 
-        elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold or hedge_tick_reached: # buy amount < sell amount on maker, buy on taker market
-            amount = -maker_unbalanced_amount
+            taker_slippage_adjustment_factor = Decimal("1") - self._slippage_buffer
+            sell_price = self.get_taker_price(amount, False)
+            
+            sell_price *= taker_slippage_adjustment_factor # taker 侧 滑点调整
+            sell_price = taker_market.quantize_order_price(taker_trading_pair, sell_price) # 重新量化 报价, 按照报价单位向下取整
+            # self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {sell_price}")
+            
+            hedged_order_quantity = min(
+                amount / base_rate,
+                taker_market.get_available_balance(self._market_pairs.taker.base_asset)
+            )
+            quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
+
             self.log_with_clock(
                 logging.WARN,
-                f"taker_delegate: maker_unbalanced_amount {amount} > " 
-                f"threshold {self._hedge_amount_threshold} , taker BUY amount {amount}"
+                f"check_and_process_hedge: taker SELL {quantized_hedge_amount} @ {sell_price}"
             )
-            buy_price = self.get_taker_price(amount, True)
+            
             try:
-                order_id = self.buy_with_specific_market(self._market_pairs.taker, amount,
-                                                         order_type=order_type, price=buy_price,
-                                                         expiration_seconds=expiration_seconds) # TODO: 60sec for CEX
+                order_id = self._strategy.sell_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
+                                                         order_type=order_type, price=sell_price,
+                                                         expiration_seconds=expiration_seconds) # TODO:
             except ValueError as e:
-                self.logger().warning(f"taker_delegate: Placing a taker BUY order on market {str(self._market_pairs.taker.market.name)} "
+                self.logger().error(f"taker_delegate: Placing a taker SELL order "
+                                      f"failed with the following error: {str(e)}")
+        # buy amount < sell amount on maker, buy on taker market
+        elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold or ( maker_unbalanced_amount < 0 and hedge_tick_reached): 
+            amount = -maker_unbalanced_amount
+            
+            taker_slippage_adjustment_factor = Decimal("1") + self.slippage_buffer
+            buy_price = self.get_taker_price(amount, True)
+
+
+            buy_price *= taker_slippage_adjustment_factor
+            buy_price = taker_market.quantize_order_price(taker_trading_pair, buy_price)
+            # self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {buy_price}")
+            
+            hedged_order_quantity = min(
+                amount / base_rate,
+                taker_market.get_available_balance(self._market_pairs.taker.quote_asset) / buy_price
+            )
+            quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
+
+            self.log_with_clock(
+                logging.WARN,
+                f"check_and_process_hedge: taker BUY {quantized_hedge_amount} @ {buy_price}"
+            )
+            
+            try:
+                order_id = self._strategy.buy_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
+                                                         order_type=order_type, price=buy_price,
+                                                         expiration_seconds=expiration_seconds)
+            except ValueError as e:
+                self.logger().error(f"taker_delegate: Placing a taker BUY order "
                                       f"failed with the following error: {str(e)}")
         else:
             self.log_with_clock(
                 logging.WARN,
-                f"taker_delegate: maker_unbalanced_amount {maker_unbalanced_amount} < " 
-                f"threshold {self._hedge_amount_threshold} , skip hedging"
+                f"taker_delegate: maker_unbalanced_amount {maker_unbalanced_amount}, " 
+                f"threshold {self._hedge_amount_threshold}, hedge_tick_reached {hedge_tick_reached}, skip hedging"
             )
 
             #FIXME: handle failed order remain amount

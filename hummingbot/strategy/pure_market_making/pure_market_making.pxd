@@ -14,6 +14,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _minimum_spread
         object _order_amount
         object _hedge_amount_threshold
+        object _slippage_buffer
         double _force_hedge_interval
         int _order_levels
         int _buy_levels

@@ -39,6 +39,10 @@ def hedge_amount_threshold_prompt() -> str:
 def force_hedge_interval_prompt() -> str:
     return f"What is the hedging interval (sec) for taker? >>> "
 
+
+def taker_slippage_buffer_prompt() -> str:
+    return f"What is the slippage buffer for taker orders, Enter 1 to indicate 1% >>> "    
+    
 def validate_price_source(value: str) -> Optional[str]:
     if value not in {"current_market", "external_market", "custom_api"}:
         return "Invalid price source type."
@@ -190,6 +194,13 @@ pure_market_making_config_map = {
         ConfigVar(key="hedge_amount_threshold",
                   prompt=hedge_amount_threshold_prompt,
                   type_str="decimal",
+                  validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
+                  prompt_on_new=True),
+    "taker_slippage_buffer":
+        ConfigVar(key="taker_slippage_buffer",
+                  prompt=taker_slippage_buffer_prompt,
+                  type_str="decimal",
+                  default=Decimal("1"),
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
                   prompt_on_new=True),
     "force_hedge_interval":
