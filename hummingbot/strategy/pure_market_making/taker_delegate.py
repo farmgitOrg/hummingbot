@@ -6,6 +6,7 @@ from hummingbot.core.data_type.common import TradeType
 from hummingbot.model.inventory_cost import InventoryCost
 from hummingbot.model.sql_connection_manager import SQLConnectionManager
 from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
+from hummingbot.strategy.strategy_base import StrategyBase
 
 from hummingbot.core.event.events import (
     BuyOrderCompletedEvent,
