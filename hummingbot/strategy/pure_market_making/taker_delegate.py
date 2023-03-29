@@ -51,15 +51,22 @@ class TakerDelegate:
         self._slippage_buffer = slippage_buffer / Decimal("100")
         self._force_hedge_initerval = force_hedge_initerval
         self._hedge_amount_threshold = hedge_amount_threshold
-        self._maker_order_id_to_filled_trades = {}
-        self._maker_filled_trades_set:set = set()
-        self._maker_filled_events_set:set = set()
-        self._hedging_ongoing_record_set:set = set()
-        self._hedging_taker_order_id_to_taker_filled_trades = {} # taker order id -> taker filled trades events
-        self._hedging_taker_order_id_to_maker_filled_trades = {}  # taker order id -> 所对冲的maker filled trades events
-        self._buy_filled_amount: Decimal = 0
-        self._sell_filled_amount: Decimal = 0
+        # self._maker_order_id_to_filled_trades = {}
+        # self._maker_filled_events_set:set = set()
+        # self._hedging_ongoing_record_set:set = set()
+        # self._hedging_taker_order_id_to_taker_filled_trades = {} # taker order id -> taker filled trades events
+        self._taker_order_id_to_maker_filled_trades = {}  # taker order id -> 所对冲的maker filled trades events
+        self._taker_order_id_to_maker_filled_amount_unhedged = {} # taker order id -> hedge amount,  >0 buy, <0 sell
+
+        self._hedge_failed_amount: Decimal = Decimal(0) # overall hedge failed amount, >0 buy, <0 fail, on maker's view
+
+        # self._buy_filled_amount: Decimal = 0
+        # self._sell_filled_amount: Decimal = 0
         
+        self._maker_filled_trade_set:set = set() # used to store filled trade id
+        self._maker_filled_trade_to_event_map = {}  # filled trade id -> filled event
+        # self._maker_filled_amount_onhedging: Decimal = Decimal(0) # >0 buy, <0 sell
+
     def debug(self):
         # buy_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, True)
         # sell_price = self._taker_market.get_price(self._market_pairs.taker.trading_pair, False)
@@ -83,8 +90,11 @@ class TakerDelegate:
         maker_buy_filled_volume = Decimal(0)
         maker_sell_filled_volume = Decimal(0)
         
-        for event in self._maker_filled_events_set:
-            if event.tradde_type is TradeType.BUY:
+        for tradeid in self._maker_filled_trade_set:
+            event = self._maker_filled_trade_to_event_map.get(tradeid)
+            if event is None:
+                continue
+            if event.trade_type is TradeType.BUY:
                 maker_buy_filled_amount += event.amount
                 maker_buy_filled_volume += event.amount * event.price
             else:
@@ -102,8 +112,8 @@ class TakerDelegate:
                 f"check_and_process_hedge: maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
             )
         #update the event record beforehand, to avoid any blocking ops later
-        self._hedging_ongoing_record_set = self._maker_filled_events_set.copy()  # FIXME: handle _hedging_ongoing_record_set not empty case
-        self._maker_filled_events_set = set()
+        trade_set_onhedging = self._maker_filled_trade_set.copy() # FIXME: handle trade_set_onhedging not empty case
+        self._maker_filled_trade_set = set()
     
         order_id = None
         maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
@@ -116,6 +126,7 @@ class TakerDelegate:
         taker_market = self._market_pairs.taker.market
         base_rate = 1
         expiration_seconds = 100 # FIXME:
+        quantized_hedge_amount:Decimal = 0
         # buy amount > sell amount on maker, sell on taker market
         if maker_unbalanced_amount > self._hedge_amount_threshold or (maker_unbalanced_amount> 0 and hedge_tick_reached): 
             amount = maker_unbalanced_amount
@@ -185,13 +196,15 @@ class TakerDelegate:
             #FIXME: handle failed order remain amount
 
         if order_id is None:
-            #recover event record if any error
-            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_ongoing_record_set
-            self._hedging_ongoing_record_set = set()
+            # recover event record if any error
+            self._maker_filled_trade_set = self._maker_filled_trade_set | trade_set_onhedging # new maker filled may happend during above hedging
             return
+
+        self._taker_order_id_to_maker_filled_amount_unhedged[order_id] = maker_unbalanced_amount # TODO: quantized_hedge_amount
+        self._taker_order_id_to_maker_filled_trades[order_id] = trade_set_onhedging
         
-        self._hedging_taker_order_id_to_taker_filled_trades[order_id] = []
-        self._hedging_taker_order_id_to_maker_filled_trades[order_id] = self._hedging_ongoing_record_set.copy()
+        # self._maker_filled_amount_onhedging += maker_unbalanced_amount # filled ( buy amount - sell amount ) on maker side 
+        
         return order_id
 
     def did_create_buy_order(self, order_created_event: BuyOrderCreatedEvent):
@@ -201,69 +214,79 @@ class TakerDelegate:
 
     def did_cancel_order(self, order_canceled_event: OrderCancelledEvent):
         order_id:str = order_canceled_event.order_id
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_cancel_order {order_id}"
             )
-            del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
-            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
-            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
+            tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id) # reset  maker filled event
+            for tradeid in tradeidset:
+                del _maker_filled_trade_to_event_map[tradeid]
+            del self._taker_order_id_to_maker_filled_trades[order_id]
+            
+            self._hedge_failed_amount += self._taker_order_id_to_maker_filled_amount_unhedged[order_id] # reocrd hedge failed amount
+            del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
+            
+            # del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
+            # self._maker_filled_events_set = self._maker_filled_events_set | self._taker_order_id_to_maker_filled_trades[order_id]  #restore
+            # del self._taker_order_id_to_maker_filled_trades[order_id]
+            # self._maker_filled_amount_onhedging += _taker_order_id_to_maker_filled_amount_unhedged
 
     def did_fail_order(self, order_failed_event: MarketOrderFailureEvent):
         order_id:str = order_failed_event.order_id
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_fail_order {order_id}"
             )
-            del self._hedging_taker_order_id_to_taker_filled_trades[order_id] #FIXME: partial filled
-            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
-            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
+            # del self._hedging_taker_order_id_to_taker_filled_trades[order_id] #FIXME: partial filled
+            self._maker_filled_events_set = self._maker_filled_events_set | self._taker_order_id_to_maker_filled_trades[order_id]  #restore
+            del self._taker_order_id_to_maker_filled_trades[order_id]
 
     def did_expire_order(self, order_expired_event: OrderExpiredEvent):   #FIXME: for expired order, do we need manually cancel it?
         order_id:str = order_expired_event.order_id
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_expire_order {order_id}"
             )
             del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
-            self._maker_filled_events_set = self._maker_filled_events_set | self._hedging_taker_order_id_to_maker_filled_trades[order_id]  #restore
-            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
+            self._maker_filled_events_set = self._maker_filled_events_set | self._taker_order_id_to_maker_filled_trades[order_id]  #restore
+            del self._taker_order_id_to_maker_filled_trades[order_id]
 
     def did_complete_buy_order(self, order_completed_event: BuyOrderCompletedEvent):
         order_id:str = order_completed_event.order_id
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_complete_buy_order {order_id}"
             )
-            del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
-            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
+            tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id)
+            for tradeid in tradeidset:
+                del _maker_filled_trade_to_event_map[tradeid]
+            del self._taker_order_id_to_maker_filled_trades[order_id]
+            del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
 
     def did_complete_sell_order(self, order_completed_event: SellOrderCompletedEvent):
         order_id:str = order_completed_event.order_id
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
                 f"taker_delegate: did_complete_sell_order {order_id}"
             )
-            del self._hedging_taker_order_id_to_taker_filled_trades[order_id]
-            del self._hedging_taker_order_id_to_maker_filled_trades[order_id]
+            tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id)
+            for tradeid in tradeidset:
+                del _maker_filled_trade_to_event_map[tradeid]
+            del self._taker_order_id_to_maker_filled_trades[order_id]
+            del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
 
     #prerequisite: the order of the event really belongs to us.
     def did_fill_maker_order(self, order_filled_event: OrderFilledEvent):
         order_id:str = order_filled_event.order_id
         exchange_trade_id:str = order_filled_event.exchange_trade_id
         
-        # if order_id in self._maker_order_id_to_filled_trades.keys():
-        #     self._maker_order_id_to_filled_trades[order_id].append(exchange_trade_id)
-        #     self._maker_filled_trade_to_event[exchange_trade_id] = order_filled_event
-
-        self._maker_filled_trades_set.add(exchange_trade_id)
-        self._maker_filled_events_set.add(order_filled_event)
-
+        self._maker_filled_trade_set.add(exchange_trade_id)
+        self._maker_filled_trade_to_event_map[exchange_trade_id] = order_filled_event
         #FIXME: need update inventory after taker!!
 
         return
@@ -272,6 +295,12 @@ class TakerDelegate:
         order_id:str = order_filled_event.order_id
         exchange_trade_id:str = order_filled_event.exchange_trade_id
         
-        if order_id in self._hedging_taker_order_id_to_taker_filled_trades.keys():
-            self._hedging_taker_order_id_to_taker_filled_trades[order_id].append(order_filled_event) ##@@## TODO: handle partial filled amount when check hedging
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys():
+            if order_filled_event.trade_type is TradeType.BUY: # taker buy filled
+                self._taker_order_id_to_maker_filled_amount_unhedged[order_id] += order_filled_event.amount
+                self._maker_filled_amount_onhedging += order_filled_event.amount  # maker remained buy amount => taker sell amount
+            else:
+                self._taker_order_id_to_maker_filled_amount_unhedged[order_id] -= order_filled_event.amount
+                self._maker_filled_amount_onhedging -= order_filled_event.amount
+    
         return
