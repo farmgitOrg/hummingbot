@@ -105,20 +105,21 @@ class TakerDelegate:
                 logging.WARN,
                 f"check_and_process_hedge: maker_sell_filled_amount: {maker_sell_filled_amount} @ avgprice {maker_sell_filled_volume/maker_sell_filled_amount}"
             )
+
+        order_id = None
+        maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
+        maker_unbalanced_amount += self._hedge_failed_amount # add previous failed order
+        self.logger().info(f"check_and_process_hedge: maker_unbalanced_amount: {maker_unbalanced_amount} ( with _hedge_failed_amount: {self._hedge_failed_amount} ), "
+                           f"hedge_tick_reached: {hedge_tick_reached}")
+        
+        # [0, hedge threshold)
+        # if maker_unbalanced_amount == 0 or (abs(maker_unbalanced_amount) < self._hedge_amount_threshold and hedge_tick_reached is False):
+        #     self.logger().debug(f"check_and_process_hedge: maker_unbalanced_amount: {maker_unbalanced_amount}, hedge_tick_reached: {hedge_tick_reached}, skip hedging")
+        #     return
+
         #update the event record beforehand, to avoid any blocking ops later
         trade_set_onhedging = self._maker_filled_trade_set.copy() # FIXME: handle trade_set_onhedging not empty case
         self._maker_filled_trade_set = set()
-    
-        order_id = None
-        maker_unbalanced_amount = maker_buy_filled_amount - maker_sell_filled_amount
-        self.logger().info(f"amend _hedge_failed_amount: {self._hedge_failed_amount}")
-        maker_unbalanced_amount += self._hedge_failed_amount # add previous failed order
-        self._hedge_failed_amount = 0
-        self.logger().info(f"final maker_unbalanced_amount: {maker_unbalanced_amount}, hedge_tick_reached: {hedge_tick_reached}")
-        
-        if maker_unbalanced_amount == 0:
-            self.logger().debug(f"check_and_process_hedge: no unhedged offer, return")
-            return
 
         order_type = self._market_pairs.taker.market.get_taker_order_type() #TODO: user MARKET order
         taker_trading_pair = self._market_pairs.taker.trading_pair
@@ -128,7 +129,7 @@ class TakerDelegate:
         quantized_hedge_amount:Decimal = 0
     
         # buy amount > sell amount on maker, sell on taker market
-        if maker_unbalanced_amount > self._hedge_amount_threshold or (maker_unbalanced_amount> 0 and hedge_tick_reached): 
+        if maker_unbalanced_amount >= self._hedge_amount_threshold or (maker_unbalanced_amount> 0 and hedge_tick_reached):
             amount = maker_unbalanced_amount
 
             taker_slippage_adjustment_factor = Decimal("1") - self._slippage_buffer
@@ -157,7 +158,7 @@ class TakerDelegate:
                 self.logger().error(f"taker_delegate: Placing a taker SELL order "
                                       f"failed with the following error: {str(e)}")
         # buy amount < sell amount on maker, buy on taker market
-        elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold or ( maker_unbalanced_amount < 0 and hedge_tick_reached): 
+        elif maker_unbalanced_amount <=  -1*self._hedge_amount_threshold or ( maker_unbalanced_amount < 0 and hedge_tick_reached):
             amount = -maker_unbalanced_amount
             
             taker_slippage_adjustment_factor = Decimal("1") + self._slippage_buffer
@@ -197,10 +198,12 @@ class TakerDelegate:
 
         if order_id is None:
             # recover event record if any error
+            # self._hedge_failed_amount keep unchanged.
             self._maker_filled_trade_set = self._maker_filled_trade_set | trade_set_onhedging # new maker filled may happend during above hedging
             self.logger().error(f"create hedging taker order failed")
             return
 
+        self._hedge_failed_amount = 0 # previous hedge failed amount will be accounted into current taker order, so reset here
         self._taker_order_id_to_maker_filled_amount_unhedged[order_id] = maker_unbalanced_amount # TODO: quantized_hedge_amount
         self._taker_order_id_to_maker_filled_trades[order_id] = trade_set_onhedging
         
