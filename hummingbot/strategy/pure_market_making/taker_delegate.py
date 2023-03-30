@@ -160,7 +160,7 @@ class TakerDelegate:
         elif maker_unbalanced_amount <  -1*self._hedge_amount_threshold or ( maker_unbalanced_amount < 0 and hedge_tick_reached): 
             amount = -maker_unbalanced_amount
             
-            taker_slippage_adjustment_factor = Decimal("1") + self.slippage_buffer
+            taker_slippage_adjustment_factor = Decimal("1") + self._slippage_buffer
             buy_price = self.get_taker_price(amount, True)
 
 
