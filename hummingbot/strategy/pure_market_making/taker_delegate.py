@@ -34,7 +34,7 @@ class TakerDelegate:
     def log_with_clock(self, log_level: int, msg: str, **kwargs):
         # clock_timestamp = pd.Timestamp(self._current_timestamp, unit="s", tz="UTC")
         # self.logger().log(log_level, f"{msg} [clock={str(clock_timestamp)}]", **kwargs)
-        self.logger().log(log_level, f"{msg}: ", **kwargs)
+        self.logger().log(log_level, f"{msg} ", **kwargs)
 
     # def __init__(self, strategy: PureMarketMakingStrategy, market_pairs: MakerTakerMarketPair) -> None:
     def __init__(self,
