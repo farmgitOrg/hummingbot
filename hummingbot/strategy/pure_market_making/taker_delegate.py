@@ -68,9 +68,8 @@ class TakerDelegate:
         
     def get_taker_price(self, base_size:Decimal, is_buy:bool) -> Decimal:
         # taker_price = self._taker_market.get_price_for_volume(self._market_pairs.taker.trading_pair,
-        #                                                     is_buy,
-        #                                                     base_size.result_price)
-        taker_price = self._market_pairs.taker.get_price_for_volume(is_buy, base_size.result_price)
+        #                                                     is_buy, base_size).result_price
+        taker_price = self._market_pairs.taker.get_price_for_volume(is_buy, base_size).result_price
         return taker_price
 
     def need_do_hedge(self) -> bool:
