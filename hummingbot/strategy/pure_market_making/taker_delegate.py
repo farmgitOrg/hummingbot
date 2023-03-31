@@ -147,8 +147,12 @@ class TakerDelegate:
             )
             quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
 
-            if order_type is OrderType.MARKET:
-                sell_price = s_decimal_nan
+            self.logger().warn(f"##@@ sell_price={sell_price}")
+            self.logger().warn(f"##@@ amount/base_rate = {amount/base_rate}, t2={taker_market.get_available_balance(self._market_pairs.taker.base_asset)}")
+            self.logger().warn(f"##@@ hedged_order_quantity = {hedged_order_quantity}, quantized_hedge_amount = {quantized_hedge_amount}")
+
+            # if order_type is OrderType.MARKET:
+            #     sell_price = s_decimal_nan
             self.log_with_clock(
                 logging.WARN,
                 f"check_and_process_hedge: taker SELL {quantized_hedge_amount} @ {sell_price}"
@@ -183,6 +187,10 @@ class TakerDelegate:
                 taker_market.get_available_balance(self._market_pairs.taker.quote_asset) / buy_price
             )
             quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
+
+            self.logger().warn(f"##@@ buy_price={buy_price}")
+            self.logger().warn(f"##@@ amount/base_rate = {amount/base_rate}, t2={taker_market.get_available_balance(self._market_pairs.taker.quote_asset)/buy_price}")
+            self.logger().warn(f"##@@ hedged_order_quantity = {hedged_order_quantity}, quantized_hedge_amount = {quantized_hedge_amount}")
 
             # if order_type is OrderType.MARKET:
             #     buy_price = s_decimal_nan
