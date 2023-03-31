@@ -264,7 +264,7 @@ class TakerDelegate:
             )
             tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id)  # reset  maker filled event
             for tradeid in tradeidset:
-                del _maker_filled_trade_to_event_map[tradeid]
+                del self._maker_filled_trade_to_event_map[tradeid]
             del self._taker_order_id_to_maker_filled_trades[order_id]
             del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
 
