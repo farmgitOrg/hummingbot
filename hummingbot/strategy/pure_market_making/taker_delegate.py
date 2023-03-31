@@ -88,11 +88,11 @@ class TakerDelegate:
             if event.trade_type is TradeType.BUY:
                 maker_buy_filled_amount += event.amount
                 maker_buy_filled_volume += event.amount * event.price
-                self.logger().info(f"hedge maker buy tradeid: {tradeid}, amount {maker_buy_filled_amount}")
+                self.logger().info(f"check_and_process_hedge: unhedged maker buy tradeid: {tradeid}, amount {maker_buy_filled_amount}")
             else:
                 maker_sell_filled_amount += event.amount
                 maker_sell_filled_volume += event.amount * event.price
-                self.logger().info(f"hedge maker sell tradeid: {tradeid}, amount {maker_sell_filled_amount}")
+                self.logger().info(f"check_and_process_hedge: unhedged maker sell tradeid: {tradeid}, amount {maker_sell_filled_amount}")
 
         if maker_buy_filled_amount > 0:
             self.log_with_clock(
@@ -202,12 +202,12 @@ class TakerDelegate:
             self.logger().error(f"create hedging taker order failed")
             return
 
+        self.logger().warn(f"check_and_process_hedge: create taker order: {order_id}")
+
         self._hedge_failed_amount = 0 # previous hedge failed amount will be accounted into current taker order, so reset here
         self._taker_order_id_to_maker_filled_amount_unhedged[order_id] = maker_unbalanced_amount # TODO: quantized_hedge_amount
         self._taker_order_id_to_maker_filled_trades[order_id] = trade_set_onhedging
         
-        self.logger().info(f"hedge maker buy tradeid: {tradeid}, amount {maker_buy_filled_amount}")
-
         return order_id
 
     def did_create_buy_order(self, order_created_event: BuyOrderCreatedEvent):

@@ -744,8 +744,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             int64_t last_hedge_tick = <int64_t>(self._last_timestamp // self._force_hedge_interval)
             bint hedge_tick_reached = (current_hedge_tick > last_hedge_tick)
             cdef object proposal
-        
-        self._taker_delegate.debug()
+
         try:
             if not self._all_markets_ready:
                 self._all_markets_ready = all([market.ready for market in self._sb_markets])
@@ -777,7 +776,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
                 if not self._take_if_crossed:
                     self.c_filter_out_takers(proposal)
-            self.logger().warning(f"##@@## ")
             self._hanging_orders_tracker.process_tick()
 
             self.c_cancel_active_orders_on_max_age_limit()
@@ -786,7 +784,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             if self.c_to_create_orders(proposal):
                 self.c_execute_orders_proposal(proposal)
 
-            # if hedge_tick_reached or self._taker_delegate.need_do_hedge():
+            # self._taker_delegate.debug()
             self._taker_delegate.check_and_process_hedge(hedge_tick_reached)
         finally:
             self._last_timestamp = timestamp
