@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.common import TradeType, OrderType
 from hummingbot.model.inventory_cost import InventoryCost
 from hummingbot.model.sql_connection_manager import SQLConnectionManager
 from hummingbot.strategy.maker_taker_market_pair import MakerTakerMarketPair
@@ -184,8 +184,8 @@ class TakerDelegate:
             )
             quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
 
-            if order_type is OrderType.MARKET:
-                buy_price = s_decimal_nan
+            # if order_type is OrderType.MARKET:
+            #     buy_price = s_decimal_nan
             self.log_with_clock(
                 logging.WARN,
                 f"check_and_process_hedge: taker BUY {quantized_hedge_amount} @ {buy_price}"
