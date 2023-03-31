@@ -81,7 +81,7 @@ def start(self):
                 f'split_level_{i}': order for i, order in enumerate(both_list)
             }
         trading_pair: str = raw_trading_pair
-        taker_market = exchange
+        taker_market = price_source_exchange
         taker_trading_pair: str = trading_pair
         maker_assets: Tuple[str, str] = self._initialize_market_assets(exchange, [trading_pair])[0]
         taker_assets: Tuple[str, str] = self._initialize_market_assets(taker_market, [taker_trading_pair])[0]

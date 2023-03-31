@@ -110,8 +110,8 @@ class TakerDelegate:
         self.logger().info(f"check_and_process_hedge: maker_unbalanced_amount: {maker_unbalanced_amount} ( with _hedge_failed_amount: {self._hedge_failed_amount} ), "
                            f"hedge_tick_reached: {hedge_tick_reached}")
         
-        # [0, hedge threshold)
-        if maker_unbalanced_amount == 0 or (abs(maker_unbalanced_amount) < self._hedge_amount_threshold and hedge_tick_reached is False):
+        # TODO: [0, hedge threshold)
+        if maker_unbalanced_amount < self._hedge_amount_threshold/10 or (abs(maker_unbalanced_amount) < self._hedge_amount_threshold and hedge_tick_reached is False):
             self.logger().debug(f"check_and_process_hedge: maker_unbalanced_amount: {maker_unbalanced_amount}, hedge_tick_reached: {hedge_tick_reached}, skip hedging")
             return
 
