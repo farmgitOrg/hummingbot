@@ -149,7 +149,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._last_own_trade_price = Decimal('nan')
         self._should_wait_order_cancel_confirmation = should_wait_order_cancel_confirmation
         self._moving_price_band = moving_price_band
-        self.c_add_markets([market_info.market])
+        # self.c_add_markets([market_info.market])
+        self.c_add_markets([market_pairs.maker.market, market_pairs.taker.market])
 
         # self._maker_market = market_pairs.maker.market
         # self._taker_market = market_pairs.taker.market
