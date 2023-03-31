@@ -88,11 +88,11 @@ class TakerDelegate:
             if event.trade_type is TradeType.BUY:
                 maker_buy_filled_amount += event.amount
                 maker_buy_filled_volume += event.amount * event.price
-                self.logger().info(f"check_and_process_hedge: unhedged maker buy tradeid: {tradeid}, amount {maker_buy_filled_amount}")
+                self.logger().info(f"check_and_process_hedge: unhedged maker buy tradeid: {tradeid}, amount {event.amount}, accumulated {maker_buy_filled_amount}")
             else:
                 maker_sell_filled_amount += event.amount
                 maker_sell_filled_volume += event.amount * event.price
-                self.logger().info(f"check_and_process_hedge: unhedged maker sell tradeid: {tradeid}, amount {maker_sell_filled_amount}")
+                self.logger().info(f"check_and_process_hedge: unhedged maker sell tradeid: {tradeid}, amount {event.amount}, accumulated {maker_sell_filled_amount}")
 
         if maker_buy_filled_amount > 0:
             self.log_with_clock(
@@ -111,7 +111,7 @@ class TakerDelegate:
                            f"hedge_tick_reached: {hedge_tick_reached}")
         
         # TODO: [0, hedge threshold)
-        if maker_unbalanced_amount < self._hedge_amount_threshold/10 or (abs(maker_unbalanced_amount) < self._hedge_amount_threshold and hedge_tick_reached is False):
+        if abs(maker_unbalanced_amount) < self._hedge_amount_threshold/10 or (abs(maker_unbalanced_amount) < self._hedge_amount_threshold and hedge_tick_reached is False):
             self.logger().debug(f"check_and_process_hedge: maker_unbalanced_amount: {maker_unbalanced_amount}, hedge_tick_reached: {hedge_tick_reached}, skip hedging")
             return
 
