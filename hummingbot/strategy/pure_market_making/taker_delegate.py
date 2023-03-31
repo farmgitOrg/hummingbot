@@ -20,7 +20,9 @@ from hummingbot.core.event.events import (
     OrderExpiredEvent
 )
 
-s_decimal_0 = Decimal("0")
+s_float_nan = float("nan")
+s_decimal_zero = Decimal(0)
+s_decimal_nan = Decimal("nan")
 pmm_taker_delegate_logger = None
 
 class TakerDelegate:
@@ -145,18 +147,25 @@ class TakerDelegate:
             )
             quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
 
+            if order_type is OrderType.MARKET:
+                sell_price = s_decimal_nan
             self.log_with_clock(
                 logging.WARN,
                 f"check_and_process_hedge: taker SELL {quantized_hedge_amount} @ {sell_price}"
             )
             
-            try:
-                order_id = self._strategy.sell_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
-                                                         order_type=order_type, price=sell_price,
-                                                         expiration_seconds=expiration_seconds) # TODO:
-            except ValueError as e:
-                self.logger().error(f"taker_delegate: Placing a taker SELL order "
-                                      f"failed with the following error: {str(e)}")
+            if quantized_hedge_amount > s_decimal_zero:
+                try:
+                    order_id = self._strategy.sell_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
+                                                            order_type=order_type, price=sell_price,
+                                                            expiration_seconds=expiration_seconds) # TODO:
+                except ValueError as e:
+                    self.logger().error(f"taker_delegate: Placing a taker SELL order "
+                                        f"failed with the following error: {str(e)}")
+            else:
+                self.logger().error(f"Current taker SELL amount {hedged_order_quantity} "
+                    f"is less than the minimum order amount allowed on the taker market. No hedging possible yet."
+                )
         # buy amount < sell amount on maker, buy on taker market
         else:
             amount = -maker_unbalanced_amount
@@ -175,18 +184,25 @@ class TakerDelegate:
             )
             quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity)) #量化到taker market的下单整数倍
 
+            if order_type is OrderType.MARKET:
+                buy_price = s_decimal_nan
             self.log_with_clock(
                 logging.WARN,
                 f"check_and_process_hedge: taker BUY {quantized_hedge_amount} @ {buy_price}"
             )
             
-            try:
-                order_id = self._strategy.buy_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
-                                                         order_type=order_type, price=buy_price,
-                                                         expiration_seconds=expiration_seconds)
-            except ValueError as e:
-                self.logger().error(f"taker_delegate: Placing a taker BUY order "
-                                      f"failed with the following error: {str(e)}")
+            if quantized_hedge_amount > s_decimal_zero:
+                try:
+                    order_id = self._strategy.buy_with_specific_market(self._market_pairs.taker, quantized_hedge_amount,
+                                                            order_type=order_type, price=buy_price,
+                                                            expiration_seconds=expiration_seconds)
+                except ValueError as e:
+                    self.logger().error(f"taker_delegate: Placing a taker BUY order "
+                                        f"failed with the following error: {str(e)}")
+            else:
+                self.logger().error(f"Current taker BUY amount {hedged_order_quantity} "
+                    f"is less than the minimum order amount allowed on the taker market. No hedging possible yet."
+                )
         # else:
         #     self.log_with_clock(
         #         logging.WARN,
