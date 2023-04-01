@@ -243,7 +243,7 @@ class TakerDelegate:
         if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
-                f"taker_delegate: did_cancel_order {order_id}"
+                f"taker_delegate: _process_uncompleted_taker_order {order_id}"
             )
             tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id) # reset  maker filled event
             for tradeid in tradeidset:
@@ -285,7 +285,7 @@ class TakerDelegate:
         if order_id in self._taker_order_id_to_maker_filled_trades.keys():
             self.log_with_clock(
                 logging.ERROR,
-                f"taker_delegate: did_complete_buy_order {order_id}"
+                f"taker_delegate: _process_completed_taker_order {order_id}"
             )
             tradeidset = self._taker_order_id_to_maker_filled_trades.get(order_id)  # reset  maker filled event
             for tradeid in tradeidset:
