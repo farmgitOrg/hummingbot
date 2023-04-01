@@ -207,7 +207,7 @@ pure_market_making_config_map = {
         ConfigVar(key="force_hedge_interval",
                   prompt=force_hedge_interval_prompt,
                   type_str="decimal",
-                  default=Decimal("120"),
+                  default=Decimal("600"),
                   validator=lambda v: validate_decimal(v, min_value=Decimal("0"), inclusive=False),
                   prompt_on_new=True),
     "price_ceiling":
