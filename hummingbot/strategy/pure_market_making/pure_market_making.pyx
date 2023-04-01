@@ -1088,6 +1088,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             object market_info = self._sb_order_tracker.c_get_shadow_market_pair_from_order_id(order_id)
             tuple order_fill_record
 
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_fill_taker_order(order_filled_event)
+            return
+
         if market_info is not None:
             limit_order_record = self._sb_order_tracker.c_get_shadow_limit_order(order_id)
             order_fill_record = (limit_order_record, order_filled_event)
@@ -1111,8 +1115,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 self._inventory_cost_price_delegate.process_order_fill_event(order_filled_event)
 
             self._taker_delegate.did_fill_maker_order(order_filled_event)
-        else:
-            self._taker_delegate.did_fill_taker_order(order_filled_event)
         
 
         #maker order filled
@@ -1151,7 +1153,11 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         cdef:
             str order_id = order_completed_event.order_id
             limit_order_record = self._sb_order_tracker.c_get_limit_order(self._market_info, order_id)
-        self._taker_delegate.did_complete_buy_order(order_completed_event)
+
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_complete_buy_order(order_completed_event)
+            return
+
         if limit_order_record is None:
             return
         active_sell_ids = [x.client_order_id for x in self.active_orders if not x.is_buy]
@@ -1193,7 +1199,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         cdef:
             str order_id = order_completed_event.order_id
             LimitOrder limit_order_record = self._sb_order_tracker.c_get_limit_order(self._market_info, order_id)
-        self._taker_delegate.did_complete_sell_order(order_completed_event)
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_complete_sell_order(order_completed_event)
+            return
+
         if limit_order_record is None:
             return
         active_buy_ids = [x.client_order_id for x in self.active_orders if x.is_buy]
@@ -1256,8 +1265,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         #         )
         #         #PyDict_DelItem(self._maker_order_id_to_filled_trades, order_id)
         #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
-
-        self._taker_delegate.did_fail_order(order_failed_event)
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_fail_order(order_failed_event)
+            return
         return
 
     cdef c_did_cancel_order(self, object cancelled_event):
@@ -1277,7 +1287,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         #             f"Maker order {order_id} cancelled, clean record"
         #         )
         #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
-        self._taker_delegate.did_cancel_order(cancelled_event)
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_cancel_order(cancelled_event)
+            return
         return
 
     cdef c_did_expire_order(self, object expired_event):
@@ -1297,7 +1309,9 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         #             f"Maker order {order_id} expired, clean record"
         #         )
         #         self._maker_order_id_to_filled_trades[order_id] = [] #FIXME: cleanup key
-        self._taker_delegate.did_expire_order(expired_event)
+        if self._taker_delegate.is_active_taker_order(order_id):
+            self._taker_delegate.did_expire_order(expired_event)
+            return
         return
 
     cdef bint c_is_within_tolerance(self, list current_prices, list proposal_prices):

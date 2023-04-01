@@ -339,5 +339,12 @@ class TakerDelegate:
                 self._taker_order_id_to_maker_filled_amount_unhedged[order_id] += order_filled_event.amount
             else:
                 self._taker_order_id_to_maker_filled_amount_unhedged[order_id] -= order_filled_event.amount
-    
         return
+
+    def is_active_taker_order(self, order_id: str):
+        if order_id in self._taker_order_id_to_maker_filled_trades.keys(): # or self._taker_order_id_to_taker_filled_trades.keys()
+            self.logger().debug(f"{order_id} is active taker order")
+            return True
+        self.logger().debug(f"{order_id} is NOT active taker order")
+        return False
+
