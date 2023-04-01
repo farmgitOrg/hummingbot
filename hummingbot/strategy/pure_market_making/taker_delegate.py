@@ -53,6 +53,7 @@ class TakerDelegate:
         self._slippage_buffer = slippage_buffer / Decimal("100")
         self._force_hedge_initerval = force_hedge_initerval
         self._hedge_amount_threshold = hedge_amount_threshold
+        self._taker_order_id_to_taker_filled_trades = {}
         self._taker_order_id_to_maker_filled_trades = {}  # taker order id -> 所对冲的maker filled trades events
         self._taker_order_id_to_maker_filled_amount_unhedged = {} # taker order id -> hedge amount,  >0 buy, <0 sell
 
@@ -231,6 +232,7 @@ class TakerDelegate:
         self._hedge_failed_amount = 0 # previous hedge failed amount will be accounted into current taker order, so reset here
         self._taker_order_id_to_maker_filled_amount_unhedged[order_id] = maker_unbalanced_amount # TODO: quantized_hedge_amount
         self._taker_order_id_to_maker_filled_trades[order_id] = trade_set_onhedging
+        self._taker_order_id_to_taker_filled_trades[order_id] = set()
         
         return order_id
 
@@ -249,6 +251,7 @@ class TakerDelegate:
             for tradeid in tradeidset:
                 del self._maker_filled_trade_to_event_map[tradeid]
             del self._taker_order_id_to_maker_filled_trades[order_id]
+            del self._taker_order_id_to_taker_filled_trades[order_id]
             
             self._hedge_failed_amount += self._taker_order_id_to_maker_filled_amount_unhedged[order_id] # reocrd hedge failed amount
             del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
@@ -292,6 +295,7 @@ class TakerDelegate:
                 del self._maker_filled_trade_to_event_map[tradeid]
             del self._taker_order_id_to_maker_filled_trades[order_id]
             del self._taker_order_id_to_maker_filled_amount_unhedged[order_id]
+            del self._taker_order_id_to_taker_filled_trades[order_id]
 
     def did_complete_buy_order(self, order_completed_event: BuyOrderCompletedEvent):
         order_id:str = order_completed_event.order_id
@@ -324,6 +328,7 @@ class TakerDelegate:
         order_id:str = order_filled_event.order_id
         exchange_trade_id:str = order_filled_event.exchange_trade_id
         
+        # use set to ignore any already existing trade entity
         self._maker_filled_trade_set.add(exchange_trade_id)
         self._maker_filled_trade_to_event_map[exchange_trade_id] = order_filled_event
         #FIXME: need update inventory after taker!!
@@ -335,6 +340,11 @@ class TakerDelegate:
         exchange_trade_id:str = order_filled_event.exchange_trade_id
         
         if order_id in self._taker_order_id_to_maker_filled_trades.keys():
+            # to avoid multiple order_filled_event cb for one filled trade
+            if exchange_trade_id in self._taker_order_id_to_taker_filled_trades.get(order_id):
+                self.logger().error(f"did_fill_taker_order: multiple order_filled_event for same exchange_trade_id: {order_id}, {exchange_trade_id}")
+                return
+            self._taker_order_id_to_taker_filled_trades[order_id].add(exchange_trade_id)
             if order_filled_event.trade_type is TradeType.BUY: # taker buy filled
                 self._taker_order_id_to_maker_filled_amount_unhedged[order_id] += order_filled_event.amount
             else:
