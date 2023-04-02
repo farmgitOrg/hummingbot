@@ -154,7 +154,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         # self._maker_market = market_pairs.maker.market
         # self._taker_market = market_pairs.taker.market
-        # self._market_pairs = market_pairs
+        self._market_pairs = market_pairs
         # self._maker_order_id_to_filled_trades = {}
         self._force_hedge_interval = force_hedge_interval
         self._hedge_amount_threshold = hedge_amount_threshold
@@ -774,7 +774,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 self.c_apply_order_size_modifiers(proposal)
                 # 5. Apply budget constraint, i.e. can't buy/sell more than what you have.
                 self.c_apply_budget_constraint(proposal)
-
+                # 6. Apply taker budget constraint, can't buy/sell more than the taker chould do
+                self.c_apply_taker_budget_constraint(proposal)
                 if not self._take_if_crossed:
                     self.c_filter_out_takers(proposal)
             self._hanging_orders_tracker.process_tick()
@@ -993,6 +994,47 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 sell.size = s_decimal_zero
             else:
                 base_balance -= base_size
+
+        proposal.sells = [o for o in proposal.sells if o.size > 0]
+
+    cdef c_apply_taker_budget_constraint(self, object proposal):
+        cdef:
+            ExchangeBase market = self._market_pairs.taker.market
+            object quote_size
+            object base_size
+            object adjusted_amount
+
+        # taker balance
+        base_balance = market.c_get_available_balance(self.base_asset)
+        quote_balance = market.c_get_available_balance(self.quote_asset)
+        order_type = market.get_taker_order_type() #TODO: user MARKET order
+
+        # maker buy => taker sell
+        for buy in proposal.buys:
+            base_size_taker_required = buy.size*2  # simply assume double base size was required
+
+            if base_balance < base_size_taker_required:
+                buy.size = s_decimal_zero
+                base_balance = s_decimal_zero
+            elif base_balance == s_decimal_zero:
+                buy.size = s_decimal_zero
+            else:
+                base_balance -= base_size_taker_required
+
+        proposal.buys = [o for o in proposal.buys if o.size > 0]
+
+        # maker sell => taker buy
+        for sell in proposal.sells:
+            quote_size_taker_required = sell.size * sell.price * 2 #simply assu double quote size was required
+
+            # Adjust sell order size to use remaining balance if less than the order amount
+            if quote_balance < quote_size_taker_required:
+                sell.size = s_decimal_zero
+                quote_balance = s_decimal_zero
+            elif quote_balance == s_decimal_zero:
+                sell.size = s_decimal_zero
+            else:
+                quote_balance -= quote_size_taker_required
 
         proposal.sells = [o for o in proposal.sells if o.size > 0]
 

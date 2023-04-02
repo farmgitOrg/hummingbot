@@ -347,4 +347,3 @@ class TakerDelegate:
             return True
         self.logger().debug(f"{order_id} is NOT active taker order")
         return False
-
