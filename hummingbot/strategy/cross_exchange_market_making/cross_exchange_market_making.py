@@ -1000,187 +1000,196 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
         self.logger().info(f"check_and_hedge_orders: hedge_buy_under_checking: {self.hedge_buy_under_checking}, hedge_sell_under_checking: {self.hedge_sell_under_checking}")
         if buy_fill_quantity > 0 and self.hedge_buy_under_checking is False:
-            self.hedge_buy_under_checking = True;
-            if buy_fill_quantity < self.hedge_min_quantity:
-                self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
-                self.hedge_buy_pending = [fill_event[1].exchange_trade_id for fill_event in buy_fill_records]
-                self.logger().warning(f"hedge_buy_pending: {self.hedge_buy_pending}")
-            else:
-                # Maker buy
-                # Taker sell
-                taker_slippage_adjustment_factor = Decimal("1") - self.slippage_buffer
-
-                hedged_order_quantity = min(
-                    buy_fill_quantity / base_rate,
-                    taker_market.get_available_balance(market_pair.taker.base_asset) *
-                    self.order_size_taker_balance_factor
-                )
-                quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity))
-
-                avg_fill_price = (sum([r.price * r.amount for _, r in buy_fill_records]) /
-                                sum([r.amount for _, r in buy_fill_records]))
-
-                maker_order_ids = [r.order_id for _, r in buy_fill_records]
-                maker_exchange_trade_ids = [r.exchange_trade_id for _, r in buy_fill_records]
-
-                if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
-                    self.logger().error("Multiple buy maker orders fills")
-                    self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
-
-                for order_id in maker_order_ids:
-                    self.log_with_clock(logging.DEBUG, f"orig maker order {order_id}, expected hedge price: {self.expected_hedging_prices[order_id]}")
-
-                # maker_order_id = maker_order_ids[0]
-                # maker_exchange_trade_id = maker_exchange_trade_ids[0]
-
-                if self.is_gateway_market(market_pair.taker):
-                    order_price = await market_pair.taker.market.get_order_price(
-                        taker_trading_pair,
-                        False,
-                        quantized_hedge_amount)
-                    if order_price is None:
-                        self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
-                        self.hedge_buy_under_checking = False;
-                        return
-                    taker_top = order_price
+            hedge_order_id = None
+            self.hedge_buy_under_checking = True
+            try:
+                if buy_fill_quantity < self.hedge_min_quantity:
+                    self.logger().warning(f"buy_fill_quantity ({buy_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
                 else:
-                    taker_top = taker_market.get_price(taker_trading_pair, False)
-                    order_price = taker_market.get_price_for_volume(
-                        taker_trading_pair, False, quantized_hedge_amount
-                    ).result_price
+                    # Maker buy
+                    # Taker sell
+                    taker_slippage_adjustment_factor = Decimal("1") - self.slippage_buffer
 
-                self.log_with_clock(logging.INFO, f"Calculated by HB order_price: {order_price}")
-                order_price *= taker_slippage_adjustment_factor
-                order_price = taker_market.quantize_order_price(taker_trading_pair, order_price)
-                self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
-
-                if quantized_hedge_amount > s_decimal_zero:
-                    self.place_order(
-                        market_pair,
-                        False,
-                        False,
-                        quantized_hedge_amount,
-                        order_price,
-                        order_level,
-                        maker_order_ids,
-                        maker_exchange_trade_ids
+                    hedged_order_quantity = min(
+                        buy_fill_quantity / base_rate,
+                        taker_market.get_available_balance(market_pair.taker.base_asset) *
+                        self.order_size_taker_balance_factor
                     )
+                    quantized_hedge_amount = taker_market.quantize_order_amount(taker_trading_pair, Decimal(hedged_order_quantity))
 
-                    if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
+                    avg_fill_price = (sum([r.price * r.amount for _, r in buy_fill_records]) /
+                                    sum([r.amount for _, r in buy_fill_records]))
+
+                    maker_order_ids = [r.order_id for _, r in buy_fill_records]
+                    maker_exchange_trade_ids = [r.exchange_trade_id for _, r in buy_fill_records]
+
+                    if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
+                        self.logger().error("Multiple buy maker orders fills")
+                        self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
+
+                    for order_id in maker_order_ids:
+                        self.log_with_clock(logging.DEBUG, f"orig maker order {order_id}, expected hedge price: {self.expected_hedging_prices[order_id]}")
+
+                    # maker_order_id = maker_order_ids[0]
+                    # maker_exchange_trade_id = maker_exchange_trade_ids[0]
+
+                    if self.is_gateway_market(market_pair.taker):
+                        order_price = await market_pair.taker.market.get_order_price(
+                            taker_trading_pair,
+                            False,
+                            quantized_hedge_amount)
+                        if order_price is None:
+                            self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
+                            self.hedge_buy_under_checking = False
+                            return
+                        taker_top = order_price
+                    else:
+                        taker_top = taker_market.get_price(taker_trading_pair, False)
+                        order_price = taker_market.get_price_for_volume(
+                            taker_trading_pair, False, quantized_hedge_amount
+                        ).result_price
+
+                    self.log_with_clock(logging.INFO, f"Calculated by HB order_price: {order_price}")
+                    order_price *= taker_slippage_adjustment_factor
+                    order_price = taker_market.quantize_order_price(taker_trading_pair, order_price)
+                    self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
+
+                    if quantized_hedge_amount > s_decimal_zero:
+                        hedge_order_id = self.place_order(
+                            market_pair,
+                            False,
+                            False,
+                            quantized_hedge_amount,
+                            order_price,
+                            order_level,
+                            maker_order_ids,
+                            maker_exchange_trade_ids
+                        )
+
+                        if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
+                            self.log_with_clock(
+                                logging.INFO,
+                                f"({market_pair.maker.trading_pair}) Hedged maker buy order(s) of "
+                                f"{buy_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
+                                f"(maker avg price={avg_fill_price}, taker top={taker_top})"
+                            )
+                    else:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}) Hedged maker buy order(s) of "
-                            f"{buy_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
-                            f"(maker avg price={avg_fill_price}, taker top={taker_top})"
+                            f"({market_pair.maker.trading_pair}) Current maker buy fill amount of "
+                            f"{buy_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
+                            f"allowed on the taker market. No hedging possible yet."
                         )
-                else:
-                    self.log_with_clock(
-                        logging.INFO,
-                        f"({market_pair.maker.trading_pair}) Current maker buy fill amount of "
-                        f"{buy_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
-                        f"allowed on the taker market. No hedging possible yet."
-                    )
-            self.hedge_buy_under_checking = False;
+            finally:
+                if hedge_order_id is None:
+                    self.hedge_buy_pending = [fill_event[1].exchange_trade_id for fill_event in buy_fill_records]
+                    self.logger().warning(f"hedge_buy_pending: {self.hedge_buy_pending}")
+                self.hedge_buy_under_checking = False
 
         if sell_fill_quantity > 0 and self.hedge_sell_under_checking is False:
-            self.hedge_sell_under_checking = True;
-            if sell_fill_quantity < self.hedge_min_quantity:
-                self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
-                self.hedge_sell_pending = [fill_event[1].exchange_trade_id for fill_event in sell_fill_records]
-                self.logger().warning(f"hedge_sell_pending: {self.hedge_sell_pending}")
-            else:
-                # Maker sell
-                # Taker buy
-                taker_slippage_adjustment_factor = Decimal("1") + self.slippage_buffer
+            hedge_order_id = None
+            self.hedge_sell_under_checking = True
+            try:
+                if sell_fill_quantity < self.hedge_min_quantity:
+                    self.logger().warning(f"sell_fill_quantity ({sell_fill_quantity}) < hedge_min_quantity ({self.hedge_min_quantity}), skip")
+                else:
+                    # Maker sell
+                    # Taker buy
+                    taker_slippage_adjustment_factor = Decimal("1") + self.slippage_buffer
 
-                if self.is_gateway_market(market_pair.taker):
-                    taker_price = await market_pair.taker.market.get_order_price(
-                        taker_trading_pair,
-                        True,
-                        sell_fill_quantity / base_rate
+                    if self.is_gateway_market(market_pair.taker):
+                        taker_price = await market_pair.taker.market.get_order_price(
+                            taker_trading_pair,
+                            True,
+                            sell_fill_quantity / base_rate
+                        )
+                        if taker_price is None:
+                            self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
+                            self.hedge_sell_under_checking = False
+                            return
+                    else:
+                        taker_price = taker_market.get_price_for_volume(
+                            taker_trading_pair,
+                            True,
+                            sell_fill_quantity / base_rate
+                        ).result_price
+
+                    hedged_order_quantity = min(
+                        sell_fill_quantity / base_rate,
+                        taker_market.get_available_balance(market_pair.taker.quote_asset) /
+                        taker_price * self.order_size_taker_balance_factor
                     )
-                    if taker_price is None:
-                        self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
-                        self.hedge_sell_under_checking = False;
-                        return
-                else:
-                    taker_price = taker_market.get_price_for_volume(
+                    quantized_hedge_amount = taker_market.quantize_order_amount(
                         taker_trading_pair,
-                        True,
-                        sell_fill_quantity / base_rate
-                    ).result_price
-
-                hedged_order_quantity = min(
-                    sell_fill_quantity / base_rate,
-                    taker_market.get_available_balance(market_pair.taker.quote_asset) /
-                    taker_price * self.order_size_taker_balance_factor
-                )
-                quantized_hedge_amount = taker_market.quantize_order_amount(
-                    taker_trading_pair,
-                    Decimal(hedged_order_quantity)
-                )
-
-                avg_fill_price = (sum([r.price * r.amount for _, r in sell_fill_records]) /
-                                sum([r.amount for _, r in sell_fill_records]))
-
-                maker_order_ids = [r.order_id for _, r in sell_fill_records]
-                maker_exchange_trade_ids = [r.exchange_trade_id for _, r in sell_fill_records]
-
-                if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
-                    self.logger().error("Multiple sell maker orders fills")
-                    self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
-
-
-                # maker_order_id = maker_order_ids[0]
-                # maker_exchange_trade_id = maker_exchange_trade_ids[0]
-
-                if self.is_gateway_market(market_pair.taker):
-                    order_price = await market_pair.taker.market.get_order_price(
-                        taker_trading_pair,
-                        True,
-                        quantized_hedge_amount)
-                    if order_price is None:
-                        self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
-                        return
-                    taker_top = order_price
-                else:
-                    taker_top = taker_market.get_price(taker_trading_pair, True)
-                    order_price = taker_market.get_price_for_volume(
-                        taker_trading_pair, True, quantized_hedge_amount
-                    ).result_price
-
-                self.log_with_clock(logging.INFO, f"Calculated by HB order_price: {order_price}")
-                order_price *= taker_slippage_adjustment_factor
-                order_price = taker_market.quantize_order_price(taker_trading_pair, order_price)
-                self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
-
-                if quantized_hedge_amount > s_decimal_zero:
-                    self.place_order(
-                        market_pair,
-                        True,
-                        False,
-                        quantized_hedge_amount,
-                        order_price,
-                        order_level,
-                        maker_order_ids,
-                        maker_exchange_trade_ids
+                        Decimal(hedged_order_quantity)
                     )
 
-                    if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
+                    avg_fill_price = (sum([r.price * r.amount for _, r in sell_fill_records]) /
+                                    sum([r.amount for _, r in sell_fill_records]))
+
+                    maker_order_ids = [r.order_id for _, r in sell_fill_records]
+                    maker_exchange_trade_ids = [r.exchange_trade_id for _, r in sell_fill_records]
+
+                    if len(maker_order_ids) != 1 or len(maker_exchange_trade_ids) != 1:
+                        self.logger().error("Multiple sell maker orders fills")
+                        self.logger().error(f"maker_order_ids={maker_order_ids}, maker_exchange_trade_ids={maker_exchange_trade_ids}")
+
+
+                    # maker_order_id = maker_order_ids[0]
+                    # maker_exchange_trade_id = maker_exchange_trade_ids[0]
+
+                    if self.is_gateway_market(market_pair.taker):
+                        order_price = await market_pair.taker.market.get_order_price(
+                            taker_trading_pair,
+                            True,
+                            quantized_hedge_amount)
+                        if order_price is None:
+                            self.logger().warning("Gateway: failed to obtain order price. No hedging order will be submitted.")
+                            self.hedge_sell_under_checking = False
+                            return
+                        taker_top = order_price
+                    else:
+                        taker_top = taker_market.get_price(taker_trading_pair, True)
+                        order_price = taker_market.get_price_for_volume(
+                            taker_trading_pair, True, quantized_hedge_amount
+                        ).result_price
+
+                    self.log_with_clock(logging.INFO, f"Calculated by HB order_price: {order_price}")
+                    order_price *= taker_slippage_adjustment_factor
+                    order_price = taker_market.quantize_order_price(taker_trading_pair, order_price)
+                    self.log_with_clock(logging.INFO, f"Slippage buffer adjusted order_price: {order_price}")
+
+                    if quantized_hedge_amount > s_decimal_zero:
+                        hedge_order_id = self.place_order(
+                            market_pair,
+                            True,
+                            False,
+                            quantized_hedge_amount,
+                            order_price,
+                            order_level,
+                            maker_order_ids,
+                            maker_exchange_trade_ids
+                        )
+
+                        if LogOption.MAKER_ORDER_HEDGED in self.logging_options:
+                            self.log_with_clock(
+                                logging.INFO,
+                                f"({market_pair.maker.trading_pair}) Hedged maker sell order(s) of "
+                                f"{sell_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
+                                f"(maker avg price={avg_fill_price}, taker top={taker_top})"
+                            )
+                    else:
                         self.log_with_clock(
                             logging.INFO,
-                            f"({market_pair.maker.trading_pair}) Hedged maker sell order(s) of "
-                            f"{sell_fill_quantity} {market_pair.maker.base_asset} on taker market to lock in profits. "
-                            f"(maker avg price={avg_fill_price}, taker top={taker_top})"
+                            f"({market_pair.maker.trading_pair}) Current maker sell fill amount of "
+                            f"{sell_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
+                            f"allowed on the taker market. No hedging possible yet."
                         )
-                else:
-                    self.log_with_clock(
-                        logging.INFO,
-                        f"({market_pair.maker.trading_pair}) Current maker sell fill amount of "
-                        f"{sell_fill_quantity} {market_pair.maker.base_asset} is less than the minimum order amount "
-                        f"allowed on the taker market. No hedging possible yet."
-                    )
-            self.hedge_sell_under_checking = False;
+            finally:
+                if hedge_order_id is None:
+                    self.hedge_sell_pending = [fill_event[1].exchange_trade_id for fill_event in sell_fill_records]
+                    self.logger().warning(f"hedge_sell_pending: {self.hedge_sell_pending}")
+                self.hedge_sell_under_checking = False
 
     def get_adjusted_limit_order_size(self, market_pair: MakerTakerMarketPair, order_level: int) -> Tuple[Decimal, Decimal]:
         """
