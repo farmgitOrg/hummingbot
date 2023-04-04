@@ -1313,7 +1313,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 order_amount = min(maker_balance, taker_balance, size)
 
                 if maker_balance <= size or taker_balance <= size: # skip if maker/taker balance less than expected order amount
-                    self.logger().warning("Balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
+                    self.logger().warning(f"Maker BUY order balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
                     order_amount = Decimal("0")
 
             return maker_market.quantize_order_amount(market_pair.maker.trading_pair, Decimal(order_amount))
@@ -1352,7 +1352,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 order_amount = min(maker_balance, taker_balance, size)
 
                 if maker_balance <= size or taker_balance <= size: # skip if maker/taker balance less than expected order amount
-                    self.logger().warning("Balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
+                    self.logger().warning(f"Maker SELL order balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
                     order_amount = Decimal("0")
 
             return maker_market.quantize_order_amount(market_pair.maker.trading_pair, Decimal(order_amount))
