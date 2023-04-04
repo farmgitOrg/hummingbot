@@ -722,6 +722,14 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 self._hedge_maker_order_task = safe_ensure_future(
                     self.hedge_filled_maker_order(order_filled_event)
                 )
+                if order_filled_event.trade_type is TradeType.BUY:
+                    self.notify_hb_app_with_timestamp(
+                        f"Partial Fill: Maker BUY order (amount {order_filled_event.amount} @ price {order_filled_event.price})"
+                    )
+                else:
+                    self.notify_hb_app_with_timestamp(
+                        f"Partial Fill: Maker SELL order (amount {order_filled_event.amount} @ price {order_filled_event.price})"
+                    )
 
     def did_cancel_order(self, order_canceled_event: OrderCancelledEvent):
         if order_canceled_event.order_id in self._taker_to_maker_order_ids.keys():
