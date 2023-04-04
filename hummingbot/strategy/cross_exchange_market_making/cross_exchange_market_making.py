@@ -763,11 +763,13 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     logging.INFO,
                     f"({market_pair.maker.trading_pair}) Maker BUY order {order_id} "
                     f"({limit_order_record.quantity} {limit_order_record.base_currency} @ "
-                    f"{limit_order_record.price} {limit_order_record.quote_currency}) has been completely filled."
+                    f"{limit_order_record.price} {limit_order_record.quote_currency}, "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
                     f"Maker BUY order ({limit_order_record.quantity} {limit_order_record.base_currency} @ "
-                    f"{limit_order_record.price} {limit_order_record.quote_currency}) is filled."
+                    f"{limit_order_record.price} {limit_order_record.quote_currency}, "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 # Leftover other side maker order will be left in the market until its expiration or potential fill
                 # Since the buy side side was filled, the sell side maker order is unlikely to be filled, therefore
@@ -783,12 +785,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     f"({market_pair.taker.trading_pair}) Taker BUY order {order_id} for "
                     f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
                     f"{taker_price} {order_completed_event.quote_asset}, "
-                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) has been completely filled."
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
                     f"Taker BUY order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
                     f"{taker_price} {order_completed_event.quote_asset}, "
-                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) is filled."
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 # maker_order_id = self._taker_to_maker_order_ids[order_id]
                 maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
@@ -865,11 +867,14 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     logging.INFO,
                     f"({market_pair.maker.trading_pair}) Maker SELL order {order_id} "
                     f"({limit_order_record.quantity} {limit_order_record.base_currency} @ "
-                    f"{limit_order_record.price} {limit_order_record.quote_currency}) has been completely filled."
+                    f"{limit_order_record.price} {limit_order_record.quote_currency}, "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
                     f"Maker SELL order ({limit_order_record.quantity} {limit_order_record.base_currency} @ "
-                    f"{limit_order_record.price} {limit_order_record.quote_currency}) is filled."
+                    f"{limit_order_record.price} {limit_order_record.quote_currency}, "
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
+
                 )
                 # Leftover other side maker order will be left in the market until its expiration or potential fill
                 # Since the sell side side was filled, the buy side maker order is unlikely to be filled, therefore
@@ -885,12 +890,12 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                     f"({market_pair.taker.trading_pair}) Taker SELL order {order_id} for "
                     f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
                     f"{taker_price} {order_completed_event.quote_asset}, "
-                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) has been completely filled."
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 self.notify_hb_app_with_timestamp(
                     f"Taker SELL order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
                     f"{taker_price} {order_completed_event.quote_asset}, "
-                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) is filled."
+                    f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
                 )
                 # maker_order_id = self._taker_to_maker_order_ids[order_id]
                 maker_order_ids_linked = self._taker_to_maker_order_ids[order_id]
