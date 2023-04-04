@@ -304,11 +304,22 @@ class TakerDelegate:
                 logging.ERROR,
                 f"taker_delegate: did_complete_buy_order {order_id}"
             )
-            self._process_completed_taker_order(order_id)
-            self._strategy.notify_hb_app_with_timestamp(
-                f"Taker BUY order {order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
-                f"@ {order_completed_event.quote_asset_amount} {order_completed_event.quote_asset} is filled"
+            taker_price = None
+            if order_completed_event.base_asset_amount is not None and order_completed_event.base_asset_amount != 0:
+                taker_price = order_completed_event.quote_asset_amount / order_completed_event.base_asset_amount
+            self.log_with_clock(
+                logging.INFO,
+                f"Taker BUY order {order_id} for "
+                f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                f"{taker_price} {order_completed_event.quote_asset}, "
+                f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
             )
+            self._strategy.notify_hb_app_with_timestamp(
+                f"Taker BUY order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                f"{taker_price} {order_completed_event.quote_asset}, "
+                f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
+            )
+            self._process_completed_taker_order(order_id)
 
     def did_complete_sell_order(self, order_completed_event: SellOrderCompletedEvent):
         order_id:str = order_completed_event.order_id
@@ -317,11 +328,22 @@ class TakerDelegate:
                 logging.ERROR,
                 f"taker_delegate: did_complete_sell_order {order_id}"
             )
-            self._process_completed_taker_order(order_id)
-            self._strategy.notify_hb_app_with_timestamp(
-                f"Taker SELL order {order_completed_event.base_asset_amount} {order_completed_event.base_asset} "
-                f"@ {order_completed_event.quote_asset_amount} {order_completed_event.quote_asset} is filled"
+            taker_price = None
+            if order_completed_event.base_asset_amount is not None and order_completed_event.base_asset_amount != 0:
+                taker_price = order_completed_event.quote_asset_amount / order_completed_event.base_asset_amount
+            self.log_with_clock(
+                logging.INFO,
+                f"Taker SELL order {order_id} for "
+                f"({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                f"{taker_price} {order_completed_event.quote_asset}, "
+                f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
             )
+            self._strategy.notify_hb_app_with_timestamp(
+                f"Taker SELL order ({order_completed_event.base_asset_amount} {order_completed_event.base_asset} @ "
+                f"{taker_price} {order_completed_event.quote_asset}, "
+                f"{order_completed_event.quote_asset_amount} {order_completed_event.quote_asset}) completely filled."
+            )
+            self._process_completed_taker_order(order_id)
 
     #prerequisite: the order of the event really belongs to us.
     def did_fill_maker_order(self, order_filled_event: OrderFilledEvent):
