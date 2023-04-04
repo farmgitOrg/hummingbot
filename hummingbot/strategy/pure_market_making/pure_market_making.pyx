@@ -1078,12 +1078,18 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                         f"({market_info.trading_pair}) Maker buy order of "
                         f"{order_filled_event.amount} {market_info.base_asset} filled."
                     )
+                    self.notify_hb_app_with_timestamp(
+                        f"Partial Fill: Maker BUY order (amount {order_filled_event.amount} @ price {order_filled_event.price})"
+                    )
             else:
                 if self._logging_options & self.OPTION_LOG_MAKER_ORDER_FILLED:
                     self.log_with_clock(
                         logging.INFO,
                         f"({market_info.trading_pair}) Maker sell order of "
                         f"{order_filled_event.amount} {market_info.base_asset} filled."
+                    )
+                    self.notify_hb_app_with_timestamp(
+                        f"Partial Fill: Maker SELL order (amount {order_filled_event.amount} @ price {order_filled_event.price})"
                     )
 
             if self._inventory_cost_price_delegate is not None:

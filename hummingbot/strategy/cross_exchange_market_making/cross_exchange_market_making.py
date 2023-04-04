@@ -1312,6 +1312,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 taker_balance *= base_rate
                 order_amount = min(maker_balance, taker_balance, size)
 
+                if maker_balance <= size or taker_balance <= size: # skip if maker/taker balance less than expected order amount
+                    self.logger().warning("Balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
+                    order_amount = Decimal("0")
+
             return maker_market.quantize_order_amount(market_pair.maker.trading_pair, Decimal(order_amount))
 
         else:
@@ -1346,6 +1350,10 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 taker_balance = taker_balance_in_quote / (taker_price * taker_slippage_adjustment_factor)
                 taker_balance *= base_rate
                 order_amount = min(maker_balance, taker_balance, size)
+
+                if maker_balance <= size or taker_balance <= size: # skip if maker/taker balance less than expected order amount
+                    self.logger().warning("Balance not enough. maker {maker_balance}, taker {taker_balance}, expect {size}")
+                    order_amount = Decimal("0")
 
             return maker_market.quantize_order_amount(market_pair.maker.trading_pair, Decimal(order_amount))
 
@@ -1784,7 +1792,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
         quantized_size_limit = maker_market.quantize_order_amount(active_order.trading_pair, order_size_limit)
 
-        if active_order.quantity > quantized_size_limit:
+        if active_order.quantity > quantized_size_limit: # exceed the balance
             if LogOption.ADJUST_ORDER in self.logging_options:
                 self.log_with_clock(
                     logging.INFO,
