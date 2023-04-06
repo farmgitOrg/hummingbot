@@ -160,6 +160,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._hedge_amount_threshold = hedge_amount_threshold
         self._slippage_buffer = slippage_buffer
         self._taker_delegate = TakerDelegate(self, market_pairs, force_hedge_interval, hedge_amount_threshold, slippage_buffer)
+        self._last_price = None
+        self._last_spread = None
 
     def all_markets_ready(self):
         return all([market.ready for market in self._sb_markets])
@@ -783,13 +785,74 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self.c_cancel_active_orders_on_max_age_limit()
             self.c_cancel_active_orders(proposal)
             self.c_cancel_orders_below_min_spread()
-            if self.c_to_create_orders(proposal):
-                self.c_execute_orders_proposal(proposal)
+
+            if pause_for_price_change_sharply(timestamp):
+                self.logger().error(f"The market price changed sharply, skip order")
+            else:
+                if self.c_to_create_orders(proposal):
+                    self.c_execute_orders_proposal(proposal)
 
             # self._taker_delegate.debug()
             self._taker_delegate.check_and_process_hedge(hedge_tick_reached)
+
         finally:
             self._last_timestamp = timestamp
+
+    #check 1. price changing with timestamp 2. change of order book spread
+    #hold 30 sec before placing any new order
+    cdef bint pause_for_price_change_sharply(self, double timestamp):
+        cdef:
+            float pause_interval_sec = 30.0
+            int64_t current_pause_tick = <int64_t>(timestamp // pause_interval_sec)
+            int64_t last_pause_tick = <int64_t>(self._last_timestamp // pause_interval_sec)
+            bint pause_tick_reached = (current_pause_tick > last_pause_tick)
+
+        # no matter whether we are in pause status, we need update the price for next coming comparison
+        price = self.get_mid_price()
+        bid_price, ask_price = self.get_top_bid_ask_for_market(self._market_pairs.taker)
+        spread = abs(bid_price - ask_price) / price
+
+        if not pause_tick_reached:
+            self.logger().warn(f"pause_for_price_change_sharply: pause_tick_reached False")
+            return False
+
+        if self._last_price is None or self._last_spread is None:
+            self._last_price = price
+            self._last_spread = spread
+            return False
+        price_diff_ratio = abs(price - self._last_price)/self._last_price
+
+
+        if self._last_timestamp :
+            self._last_spread = spread
+
+        spread_diff_ratio
+        
+        
+
+
+
+        current_price = self.get_price()
+
+        return False
+        return True
+
+    def get_top_bid_ask_for_market(self, market: MarketTradingPairTuple):
+        """
+        Calculate the top bid and ask using top depth tolerance in maker order book
+
+        :param market_pair: cross exchange market pair
+        :return: (top bid: Decimal, top ask: Decimal)
+        """
+        # trading_pair = market.trading_pair
+        top_depth_tolerance = 0
+        if top_depth_tolerance == 0:
+            top_bid_price = market.get_price(True)
+            top_ask_price = market.get_price(False)
+        else:
+            top_bid_price = market.get_price_for_volume(True, top_depth_tolerance).result_price
+            top_ask_price = market.get_price_for_volume(False, top_depth_tolerance).result_price
+        return top_bid_price, top_ask_price
 
     cdef object c_create_base_proposal(self):
         cdef:
@@ -846,6 +909,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                     size = market.c_quantize_order_amount(self.trading_pair, size)
                     if size > 0:
                         sells.append(PriceSize(price, size))
+            
+
 
         return Proposal(buys, sells)
 

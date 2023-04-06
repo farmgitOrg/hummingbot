@@ -66,6 +66,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _market_pairs
 
         object _taker_delegate
+        object _last_price
+        object _last_spread
 
     cdef object c_get_mid_price(self)
     cdef object c_create_base_proposal(self)
