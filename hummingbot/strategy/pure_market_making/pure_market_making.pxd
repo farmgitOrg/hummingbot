@@ -68,6 +68,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         object _taker_delegate
         object _last_price
         object _last_spread
+        double _pause_till_timestamp
 
     cdef object c_get_mid_price(self)
     cdef object c_create_base_proposal(self)
@@ -92,3 +93,4 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef c_execute_orders_proposal(self, object proposal)
     cdef set_timers(self)
     cdef c_apply_moving_price_band(self, object proposal)
+    cdef bint pause_for_price_change_sharply(self, double timestamp)

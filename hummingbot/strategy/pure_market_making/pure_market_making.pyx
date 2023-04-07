@@ -786,8 +786,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self.c_cancel_active_orders(proposal)
             self.c_cancel_orders_below_min_spread()
 
-            if pause_for_price_change_sharply(timestamp):
-                self.logger().error(f"The market price changed sharply, skip order")
+            if self.pause_for_price_change_sharply(timestamp):
+                self.logger().error(f"Market price changed sharply, skip order")
+                self.notify_hb_app_with_timestamp(f"Market price changed sharply, skip order")
+
             else:
                 if self.c_to_create_orders(proposal):
                     self.c_execute_orders_proposal(proposal)
@@ -803,39 +805,43 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     cdef bint pause_for_price_change_sharply(self, double timestamp):
         cdef:
             float pause_interval_sec = 30.0
-            int64_t current_pause_tick = <int64_t>(timestamp // pause_interval_sec)
-            int64_t last_pause_tick = <int64_t>(self._last_timestamp // pause_interval_sec)
-            bint pause_tick_reached = (current_pause_tick > last_pause_tick)
+            float price_change_rate_threshold = 1/100.0  # 1% change on price in 1 sec
+            float spread_change_rate_threshold = 2 # eg. 0.2% -> 0.6% in 1 sec
 
         # no matter whether we are in pause status, we need update the price for next coming comparison
         price = self.get_mid_price()
         bid_price, ask_price = self.get_top_bid_ask_for_market(self._market_pairs.taker)
         spread = abs(bid_price - ask_price) / price
 
-        if not pause_tick_reached:
-            self.logger().warn(f"pause_for_price_change_sharply: pause_tick_reached False")
-            return False
-
-        if self._last_price is None or self._last_spread is None:
+        if self._last_price is None or self._last_spread is None or self._pause_till_timestamp is None:
             self._last_price = price
             self._last_spread = spread
-            return False
+            self._pause_till_timestamp = timestamp
+            return True  # pause for the first check
+
         price_diff_ratio = abs(price - self._last_price)/self._last_price
-
-
-        if self._last_timestamp :
-            self._last_spread = spread
-
-        spread_diff_ratio
+        spread_diff_ratio = abs(spread - self._last_spread)/self._last_spread
         
-        
+        price_change_rate = float(price_diff_ratio)/(timestamp - self._last_timestamp) # per sec
+        spread_change_rate = float(spread_diff_ratio)/(timestamp - self._last_timestamp)
 
+        self.logger().info(
+            f"pause_for_price_change_sharply: price {price}, spread {spread}, last price {self._last_price}, last spread {self._last_spread}; "
+            f"price_change_rate {price_change_rate}, spread_change_rate {spread_change_rate}"
+        )
 
+        if price_change_rate > price_change_rate_threshold or spread_change_rate > spread_change_rate_threshold:
+            self.logger().error(
+                f"pause_for_price_change_sharply: price/spread quickly change. pause"
+            )
+            self._pause_till_timestamp = timestamp + pause_interval_sec
+            return True
 
-        current_price = self.get_price()
-
-        return False
-        return True
+        if timestamp < self._pause_till_timestamp:
+            self.logger().warn(f"pause_for_price_change_sharply: pause in price change window. remain sec: {self._pause_till_timestamp - timestamp}")
+            return True
+        else:
+            return False # go on
 
     def get_top_bid_ask_for_market(self, market: MarketTradingPairTuple):
         """
