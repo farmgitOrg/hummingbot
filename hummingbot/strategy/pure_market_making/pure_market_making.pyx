@@ -819,29 +819,34 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             self._pause_till_timestamp = timestamp
             return True  # pause for the first check
 
-        price_diff_ratio = abs(price - self._last_price)/self._last_price
-        spread_diff_ratio = abs(spread - self._last_spread)/self._last_spread
-        
-        price_change_rate = float(price_diff_ratio)/(timestamp - self._last_timestamp) # per sec
-        spread_change_rate = float(spread_diff_ratio)/(timestamp - self._last_timestamp)
+        try:
+            price_diff_ratio = abs(price - self._last_price)/self._last_price
+            spread_diff_ratio = abs(spread - self._last_spread)/self._last_spread
+            
+            price_change_rate = float(price_diff_ratio)/(timestamp - self._last_timestamp) # per sec
+            spread_change_rate = float(spread_diff_ratio)/(timestamp - self._last_timestamp)
 
-        self.logger().info(
-            f"pause_for_price_change_sharply: price {price}, spread {spread}, last price {self._last_price}, last spread {self._last_spread}; "
-            f"price_change_rate {price_change_rate}, spread_change_rate {spread_change_rate}"
-        )
-
-        if price_change_rate > price_change_rate_threshold or spread_change_rate > spread_change_rate_threshold:
-            self.logger().error(
-                f"pause_for_price_change_sharply: price/spread quickly change. pause"
+            self.logger().info(
+                f"pause_for_price_change_sharply: price {price}, spread {spread}, last price {self._last_price}, last spread {self._last_spread}; "
+                f"price_change_rate {price_change_rate}, spread_change_rate {spread_change_rate}"
             )
-            self._pause_till_timestamp = timestamp + pause_interval_sec
-            return True
 
-        if timestamp < self._pause_till_timestamp:
-            self.logger().warn(f"pause_for_price_change_sharply: pause in price change window. remain sec: {self._pause_till_timestamp - timestamp}")
-            return True
-        else:
-            return False # go on
+            if price_change_rate > price_change_rate_threshold or spread_change_rate > spread_change_rate_threshold:
+                self.logger().error(
+                    f"pause_for_price_change_sharply: price/spread quickly change. pause"
+                )
+                self._pause_till_timestamp = timestamp + pause_interval_sec
+                return True
+
+            if timestamp < self._pause_till_timestamp:
+                self.logger().warn(f"pause_for_price_change_sharply: pause in price change window. remain sec: {self._pause_till_timestamp - timestamp}")
+                return True
+            else:
+                return False # go on
+        finally:
+            # alway update the price and spread for last record
+            self._last_price = price
+            self._last_spread = spread
 
     def get_top_bid_ask_for_market(self, market: MarketTradingPairTuple):
         """
