@@ -788,8 +788,6 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
             if self.pause_for_price_change_sharply(timestamp):
                 self.logger().error(f"Market price changed sharply, skip order")
-                self.notify_hb_app_with_timestamp(f"Market price changed sharply, skip order")
-
             else:
                 if self.c_to_create_orders(proposal):
                     self.c_execute_orders_proposal(proposal)
@@ -835,6 +833,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                 self.logger().error(
                     f"pause_for_price_change_sharply: price/spread quickly change. pause"
                 )
+                self.notify_hb_app_with_timestamp(f"Market price changed sharply, skip order window")
                 self._pause_till_timestamp = timestamp + pause_interval_sec
                 return True
 
