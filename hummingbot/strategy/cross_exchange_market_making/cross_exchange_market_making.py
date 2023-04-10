@@ -804,6 +804,23 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                         # Was maker order fully filled?
                         maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
                         if maker_order_id not in maker_order_ids:
+                            # the maker_order_id not in active limit order list, it means the maker order is completely filled, but all its corresponding maker_filled_trades may not be all filled.
+                            # eg:   create maker BUY order M, partial fill F1, partial fill F2, create taker SELL order H1 for hedging F1+F2, 
+                            #       partial fill F3 (F3 < hedging threshold), maker order complete filled.
+                            #       H1 completed filled. currently active_maker_limit_orders no longer contains M, so it will enter this point.
+                            maker_trades_list = self._maker_to_maker_filled_trades[maker_order_id]
+                            maker_trades_list_others = list(trade for trade in maker_trades_list if trade not in self._taker_to_maker_filled_trades[order_id]) # the maker filled trades that not filled by this taker order
+                            not_complete_hedged = False
+                            for trade in maker_trades_list_others:
+                                if trade in list(self._ongoing_hedging_table.keys()):
+                                    not_complete_hedged = True
+                                    self.log_with_clock(
+                                        logging.INFO,
+                                        f"did_complete_buy_order: maker trade {trade} belongs to maker order {maker_order_id} still not hedged"
+                                    )
+                                    break # for trade
+                            if not_complete_hedged:
+                                continue # for maker_order_id
                             self.log_with_clock(
                                 logging.INFO,
                                 f"did_complete_buy_order: maker_filled_trades: {self._maker_to_maker_filled_trades[maker_order_id]} of maker_order_id: {maker_order_id} fully hedged."
@@ -903,12 +920,29 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
                 del self._taker_to_maker_order_ids[order_id]
                 for maker_order_id in set(maker_order_ids_linked): # remove duplicates maker orders for currently completed taker order
                     # Get all active taker order ids for the maker order id
-                    active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set(
-                        self._maker_to_taker_order_ids[maker_order_id]))
-                    if len(active_taker_ids) == 0:
+                    active_taker_ids = set(self._taker_to_maker_order_ids.keys()).intersection(set( # all active taker orders
+                        self._maker_to_taker_order_ids[maker_order_id]))                            # all taker orders for hedging current maker order
+                    if len(active_taker_ids) == 0: # no active taker orders for this maker order
                         # Was maker order fully filled?
                         maker_order_ids = list(order_id for market, limit_order, order_id in self.active_maker_limit_orders)
-                        if maker_order_id not in maker_order_ids:
+                        if maker_order_id not in maker_order_ids: # if the maker order is not in active limit order list, it means this maker order is completely filled
+                            # the maker_order_id not in active limit order list, it means the maker order is completely filled, but all its corresponding maker_filled_trades may not be all filled.
+                            # eg:   create maker BUY order M, partial fill F1, partial fill F2, create taker SELL order H1 for hedging F1+F2, 
+                            #       partial fill F3 (F3 < hedging threshold), maker order complete filled.
+                            #       H1 completed filled. currently active_maker_limit_orders no longer contains M, so it will enter this point.
+                            maker_trades_list = self._maker_to_maker_filled_trades[maker_order_id]
+                            maker_trades_list_others = list(trade for trade in maker_trades_list if trade not in self._taker_to_maker_filled_trades[order_id]) # the maker filled trades that not filled by this taker order
+                            not_complete_hedged = False
+                            for trade in maker_trades_list_others:
+                                if trade in list(self._ongoing_hedging_table.keys()):
+                                    not_complete_hedged = True
+                                    self.log_with_clock(
+                                        logging.INFO,
+                                        f"did_complete_sell_order: maker trade {trade} belongs to maker order {maker_order_id} still not hedged"
+                                    )
+                                    break # for trade
+                            if not_complete_hedged:
+                                continue # for maker_order_id
                             self.log_with_clock(
                                 logging.INFO,
                                 f"did_complete_sell_order: maker_filled_trades: {self._maker_to_maker_filled_trades[maker_order_id]} of maker_order_id: {maker_order_id} fully hedged."
@@ -933,7 +967,7 @@ class CrossExchangeMarketMakingStrategy(StrategyPyBase):
 
                     # notify the hedging result, save to db
                     if  order_id in self._taker_to_maker_filled_trades.keys():
-                        maker_filled_trades = self._taker_to_maker_filled_trades[order_id];
+                        maker_filled_trades = self._taker_to_maker_filled_trades[order_id]
                         self.log_with_clock(
                             logging.INFO,
                             f"(did_complete_sell_order: taker order_id: {order_id} hedged maker_filled_trades: {maker_filled_trades}"
